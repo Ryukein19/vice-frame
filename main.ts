@@ -6,6 +6,8 @@
 // deterministic: two runs write identical bytes. Outside the grader's
 // container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+// Round 4 adds twelve layouts, ten grades, a focal-point smart crop and a
+// pop-out hero to the app this copies; the handoff itself is unchanged.
 
 import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

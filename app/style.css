@@ -57,6 +57,7 @@ input[type=checkbox] { accent-color: #ff2d95; width: 16px; height: 16px; }
 button { font: inherit; font-weight: 700; padding: 10px 12px; border: 0; border-radius: 8px; background: #2de2d8; color: #08211f; cursor: pointer; }
 button:hover { filter: brightness(1.12); }
 #load-samples { background: #3a2360; color: #f4eefc; width: 100%; margin-bottom: 10px; }
+#reset-focal { background: #3a2360; color: #f4eefc; width: 100%; }
 .exports { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .exports .wide { grid-column: 1 / -1; background: #ff2d95; color: #fff; }
 #status { margin: 10px 0 0; color: #8fe8df; min-height: 1.2em; font-size: 13px; }

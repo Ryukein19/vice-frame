@@ -1,3 +1,4 @@
+# Build and run artefacts — never committed.
 node_modules/
 out/
 out2/

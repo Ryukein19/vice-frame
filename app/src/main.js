@@ -4,8 +4,9 @@
 // query sets up a fixed scene for a screenshot instead (./shots.js).
 import { drawViceCover } from './cover.js';
 import { runShot } from './shots.js';
-import { LAYOUTS, layoutById, panelAt, panelCount } from './layouts.js';
+import { LAYOUTS, layoutById, panelAt, panelCount, panelRects } from './layouts.js';
 import { GRADES, gradeById } from './grade.js';
+import { focalFromPoint } from './smartcrop.js';
 
 const SAMPLES = ['pier', 'boulevard', 'neon', 'courier', 'getaway'];
 const ROLE_IDEAS = ['THE INSIDER', 'THE BOSS', 'THE DRIVER', 'THE LOOKOUT', 'THE FIXER'];
@@ -23,9 +24,14 @@ function freshSlots() {
     zoom: 1,
     panX: 0,
     panY: 0,
+    focal: null,
     role: ROLE_IDEAS[i % ROLE_IDEAS.length],
   }));
 }
+
+// Smart-crop mode: while it is on, clicking a photo sets that panel's focal
+// point instead of just selecting the panel.
+let smartCropMode = false;
 
 const state = {
   layout: 'grid',
@@ -39,6 +45,7 @@ const state = {
   tagline: 'Every empire starts with one job',
   billing: 'A Vice Frame original · Made with photos on your own machine',
   furniture: true,
+  popout: false,
 };
 
 function redraw() {
@@ -139,6 +146,22 @@ canvas.addEventListener('click', (event) => {
   const panelH = state.furniture ? canvas.height * 0.80 : canvas.height;
   const hit = panelAt(state.layout, canvas.width, panelH, px, py);
   if (hit >= 0) {
+    // In smart-crop mode a click on a photo pins that spot as the panel's
+    // focal point, so the crop centres on it; the pan sliders reset, since
+    // the focal point now owns the crop.
+    if (smartCropMode) {
+      const slot = state.panels[hit];
+      if (slot.img) {
+        const rect = panelRects(state.layout, canvas.width, panelH)[hit];
+        slot.focal = focalFromPoint(rect, slot.img, slot.zoom, slot.panX, slot.panY, px, py);
+        slot.panX = 0;
+        slot.panY = 0;
+        selectPanel(hit);
+        redraw();
+        say(`Focal point set on panel ${hit + 1} — the crop now centres there.`);
+        return;
+      }
+    }
     selectPanel(hit);
     say(`Panel ${hit + 1} selected — ${selectedSlot().role}`);
   }
@@ -191,6 +214,28 @@ function bindCrop() {
   });
 }
 
+// --- smart crop -------------------------------------------------------------
+
+function bindSmartCrop() {
+  const toggle = document.getElementById('smart-crop');
+  toggle.addEventListener('change', (event) => {
+    smartCropMode = event.target.checked;
+    say(smartCropMode
+      ? 'Smart crop on — click a face on the cover to pin it as the focal point.'
+      : 'Smart crop off — clicks select panels again.');
+  });
+  document.getElementById('reset-focal').addEventListener('click', () => {
+    const slot = selectedSlot();
+    if (!slot.focal) {
+      say('No focal point on this panel — it already crops from the centre.');
+      return;
+    }
+    slot.focal = null;
+    redraw();
+    say(`Focal point cleared on panel ${state.selected + 1}.`);
+  });
+}
+
 // --- caption and poster furniture -------------------------------------------
 
 function bindText() {
@@ -209,6 +254,13 @@ function bindText() {
     state.furniture = event.target.checked;
     redraw();
     say(state.furniture ? 'Poster furniture on.' : 'Clean cover — furniture off.');
+  });
+  const popout = document.getElementById('popout');
+  popout.checked = state.popout;
+  popout.addEventListener('change', (event) => {
+    state.popout = event.target.checked;
+    redraw();
+    say(state.popout ? 'Pop-out hero on — the biggest panel breaks its frame.' : 'Pop-out hero off.');
   });
 }
 
@@ -264,6 +316,7 @@ function bindExport() {
 buildPickers();
 syncPickers();
 bindCrop();
+bindSmartCrop();
 bindText();
 bindExport();
 syncPanelControls();

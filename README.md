@@ -8,9 +8,11 @@ Vice Frame turns a photo and a caption into GTA-style multi-panel cover art: a V
 
 ## What it does
 
-- **Five layouts** — Vice Grid (2×2), Sunset Split (hero + two), Neon Strip (three tall), Diagonal Trio (slanted), Hero Mosaic (hero + four). Pick one and the panels rearrange.
-- **Six grades** — Sunset, Neon, Palm, Neon Night, Golden Hour, Tropic Teal. Each re-colours the whole cover.
+- **Twelve layouts** — Vice Grid (2×2), Sunset Split (hero + two), Neon Strip (three tall), Diagonal Trio (slanted), Hero Mosaic (hero + four), Sunset Strip (hero band + three), Palm Court (hero + two stacked), Neon Alley (four tall, middle wider), Vice Strip (diagonal band), Golden Hour (hero + three in an L), Tropicana (asymmetric mosaic of five), Bayfront (panoramic hero + two). Pick one and the panels rearrange.
+- **Ten grades** — Sunset, Neon, Palm, Neon Night, Golden Hour, Tropic Teal, Midnight, Coral, Chrome, Flamingo. Each re-colours the whole cover.
 - **A role tag on every panel** — "THE INSIDER", "THE BOSS", "THE DRIVER" and more. Click a panel to select it, then set its tag and crop it with zoom and pan sliders.
+- **Smart crop** — turn it on and click a face on the cover to pin it as that panel's focal point; the crop centres on it, so a portrait keeps its subject in frame. Reset it any time to go back to the centred crop.
+- **Pop-out hero** — one switch lifts the biggest panel out of its frame: slightly larger, tilted a degree, and floating on a soft shadow above the rest of the cover.
 - **Poster furniture** — a striped 3D title in Anton with a Yellowtail script subtitle, a press quote bar, a volume badge, a tagline, a billing block, a gold seal, a barcode and a COMING SOON stamp. One switch turns it all off for a clean cover.
 - **Export** — PNG at 1080×1080, 1080×1350 or 1920×1080, or all three at once.
 - **Samples** — five photos ship with the app (boulevard, pier, neon street, courier, getaway car) so it works out of the box; or load your own photo into any panel.
@@ -25,6 +27,6 @@ Then open http://localhost:8080 in desktop Chrome. Everything runs offline from 
 
 ## How it works
 
-`app/src/layouts.js` defines the five panel arrangements, `app/src/grade.js` the six colour grades, and `app/src/cover.js` paints the whole poster (panels, grade tint, role tags, title and furniture) onto a canvas. `app/src/main.js` wires the editor and the PNG export. `main.ts` copies `app/` and `screenshots/` to the output directory and writes `dossier.json`.
+`app/src/layouts.js` defines the twelve panel arrangements, `app/src/grade.js` the ten colour grades, `app/src/smartcrop.js` the focal-point crop and `app/src/popout.js` the pop-out hero, and `app/src/cover.js` paints the whole poster (panels, grade tint, role tags, title and furniture) onto a canvas. `app/src/main.js` wires the editor and the PNG export. `main.ts` copies `app/` and `screenshots/` to the output directory and writes `dossier.json`.
 
 No Rockstar Games logo, artwork or font is used anywhere — all art, lettering and effects are original.

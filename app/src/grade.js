@@ -53,6 +53,38 @@ export const GRADES = [
     tintBottom: 'rgba(6, 90, 120, 0.46)',
     glow: '#2de2d8',
   },
+  {
+    id: 'midnight',
+    name: 'Midnight',
+    filter: 'brightness(0.9) saturate(1.5) contrast(1.2) hue-rotate(30deg)',
+    tintTop: 'rgba(40, 60, 180, 0.16)',
+    tintBottom: 'rgba(12, 8, 40, 0.55)',
+    glow: '#6a7cff',
+  },
+  {
+    id: 'coral',
+    name: 'Coral',
+    filter: 'saturate(1.5) contrast(1.08) hue-rotate(-8deg) sepia(0.12)',
+    tintTop: 'rgba(255, 127, 110, 0.14)',
+    tintBottom: 'rgba(200, 60, 90, 0.46)',
+    glow: '#ff7f6e',
+  },
+  {
+    id: 'chrome',
+    name: 'Chrome',
+    filter: 'saturate(0.35) contrast(1.35) brightness(1.05)',
+    tintTop: 'rgba(220, 225, 235, 0.12)',
+    tintBottom: 'rgba(90, 100, 120, 0.45)',
+    glow: '#c8d0dc',
+  },
+  {
+    id: 'flamingo',
+    name: 'Flamingo',
+    filter: 'saturate(1.6) contrast(1.12) hue-rotate(-28deg)',
+    tintTop: 'rgba(255, 110, 190, 0.15)',
+    tintBottom: 'rgba(20, 160, 170, 0.42)',
+    glow: '#ff6ebe',
+  },
 ];
 
 /** The grade record for an id, falling back to Sunset when unknown. */

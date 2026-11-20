@@ -1,5 +1,7 @@
 import { panelRects } from './layouts.js';
 import { gradeById } from './grade.js';
+import { focalOffset } from './smartcrop.js';
+import { heroIndex, drawPopoutHero } from './popout.js';
 
 // Draws the cover: the photo filling the square, a sunset tint rising from the bottom, and the caption in bold
 // white capitals along the foot.
@@ -66,9 +68,15 @@ export function drawViceCover(canvas, state) {
   ctx.fillStyle = '#160a24';
   ctx.fillRect(0, 0, w, h);
   const count = rects.length;
+  // With the pop-out on, the hero panel (the largest) is held back and
+  // painted last, lifted out of its frame above the other panels.
+  let hero = -1;
+  if (state.popout) hero = heroIndex(rects);
   for (let i = 0; i < count; i++) {
+    if (i === hero) continue;
     paintPanel(ctx, rects[i], state.panels[i] ?? null, grade);
   }
+  if (hero >= 0) drawPopoutHero(ctx, rects[hero], state.panels[hero] ?? null, grade, paintPanel);
   ctx.restore();
   if (state.furniture) {
     paintPosterTitle(ctx, w, h, state.caption, state.subtitle, grade.glow);
@@ -110,8 +118,16 @@ function paintPanel(ctx, rect, panel, grade) {
     const ph = img.naturalHeight * scale;
     const overX = Math.max(0, pw - rect.w);
     const overY = Math.max(0, ph - rect.h);
-    const dx = rect.x + (rect.w - pw) / 2 - panX * overX;
-    const dy = rect.y + (rect.h - ph) / 2 - panY * overY;
+    // A focal point overrides the pan: the crop centres on the point the
+    // user picked (or the top-centre default), so a face stays in frame.
+    let dx;
+    let dy;
+    if (panel.focal) {
+      ({ dx, dy } = focalOffset(rect, img, scale, panel.focal));
+    } else {
+      dx = rect.x + (rect.w - pw) / 2 - panX * overX;
+      dy = rect.y + (rect.h - ph) / 2 - panY * overY;
+    }
     ctx.filter = grade.filter;
     ctx.drawImage(img, dx, dy, pw, ph);
     ctx.filter = 'none';

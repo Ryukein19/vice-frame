@@ -10,6 +10,13 @@ export const LAYOUTS = [
   { id: 'strip', name: 'Neon Strip', blurb: 'Three tall vertical panels.' },
   { id: 'trio', name: 'Diagonal Trio', blurb: 'Three slanted panels, seams on the diagonal.' },
   { id: 'mosaic', name: 'Hero Mosaic', blurb: 'One hero panel beside four small ones.' },
+  { id: 'sunset-strip', name: 'Sunset Strip', blurb: 'A wide hero band over a row of three.' },
+  { id: 'palm-court', name: 'Palm Court', blurb: 'A hero on the left, two stacked on the right.' },
+  { id: 'neon-alley', name: 'Neon Alley', blurb: 'Four tall panels, the middle two wider.' },
+  { id: 'vice-strip', name: 'Vice Strip', blurb: 'A diagonal band cuts across the cover.' },
+  { id: 'golden-hour', name: 'Golden Hour', blurb: 'A large hero with three small panels in an L.' },
+  { id: 'tropicana', name: 'Tropicana', blurb: 'An asymmetric mosaic of five panels.' },
+  { id: 'bayfront', name: 'Bayfront', blurb: 'A panoramic hero over two small panels.' },
 ];
 
 // Unit-space panel shapes. A shape is { x, y, w, h } for a rectangle, or
@@ -44,6 +51,57 @@ const SHAPES = {
     { x: 0.79, y: 0, w: 0.21, h: 0.5 },
     { x: 0.58, y: 0.5, w: 0.21, h: 0.5 },
     { x: 0.79, y: 0.5, w: 0.21, h: 0.5 },
+  ],
+  // A wide hero band over a row of three small panels.
+  'sunset-strip': [
+    { x: 0, y: 0, w: 1, h: 0.58 },
+    { x: 0, y: 0.58, w: 1 / 3, h: 0.42 },
+    { x: 1 / 3, y: 0.58, w: 1 / 3, h: 0.42 },
+    { x: 2 / 3, y: 0.58, w: 1 / 3, h: 0.42 },
+  ],
+  // A hero on the left with two stacked panels on the right.
+  'palm-court': [
+    { x: 0, y: 0, w: 0.62, h: 1 },
+    { x: 0.62, y: 0, w: 0.38, h: 0.5 },
+    { x: 0.62, y: 0.5, w: 0.38, h: 0.5 },
+  ],
+  // Four tall panels; the middle two are wider than the outer two.
+  'neon-alley': [
+    { x: 0, y: 0, w: 0.22, h: 1 },
+    { x: 0.22, y: 0, w: 0.28, h: 1 },
+    { x: 0.5, y: 0, w: 0.28, h: 1 },
+    { x: 0.78, y: 0, w: 0.22, h: 1 },
+  ],
+  // Three slanted quads that tile the cover: a top sliver, a wide diagonal
+  // band, and a bottom sliver. The band's edges lean right as they run down.
+  'vice-strip': [
+    { poly: [[0, 0], [1, 0], [1, 0.16], [0, 0.28]] },
+    { poly: [[0, 0.28], [1, 0.16], [1, 0.58], [0, 0.7]] },
+    { poly: [[0, 0.7], [1, 0.58], [1, 1], [0, 1]] },
+  ],
+  // A large hero in the top-left corner, a full-height strip on the right
+  // and two small panels along the foot: the three small panels wrap the
+  // hero in an L.
+  'golden-hour': [
+    { x: 0, y: 0, w: 0.66, h: 0.66 },
+    { x: 0.66, y: 0, w: 0.34, h: 1 },
+    { x: 0, y: 0.66, w: 0.33, h: 0.34 },
+    { x: 0.33, y: 0.66, w: 0.33, h: 0.34 },
+  ],
+  // An asymmetric mosaic: a hero and a mid panel up top, two small panels
+  // stacked at the top-right, and one wide panel along the foot.
+  tropicana: [
+    { x: 0, y: 0, w: 0.45, h: 0.62 },
+    { x: 0.45, y: 0, w: 0.3, h: 0.62 },
+    { x: 0.75, y: 0, w: 0.25, h: 0.38 },
+    { x: 0.75, y: 0.38, w: 0.25, h: 0.24 },
+    { x: 0, y: 0.62, w: 1, h: 0.38 },
+  ],
+  // A panoramic hero over two small panels.
+  bayfront: [
+    { x: 0, y: 0, w: 1, h: 0.68 },
+    { x: 0, y: 0.68, w: 0.5, h: 0.32 },
+    { x: 0.5, y: 0.68, w: 0.5, h: 0.32 },
   ],
 };
 

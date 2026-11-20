@@ -2,6 +2,8 @@
 // `?shot=editor` shows the editor with a photo loaded; the query picks the
 // layout, grade, sample photos and every line of poster text, so a shot is a
 // full cover in a chosen mood. window.__shotReady is set once it is painted.
+// Any of the twelve layouts and ten grades can be picked through the query
+// (layout= / grade=), so a shot can show the round-4 additions too.
 const DEFAULT_ROLES = ['THE INSIDER', 'THE BOSS', 'THE DRIVER', 'THE LOOKOUT', 'THE FIXER'];
 
 function splitList(value, fallback) {
