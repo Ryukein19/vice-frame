@@ -31,6 +31,8 @@
         <button type="button" data-layout="vice-grid" title="Four panels">Vice Grid</button>
         <button type="button" data-layout="sunset-split" title="Hero panel plus two">Sunset Split</button>
         <button type="button" data-layout="neon-strip" title="Three tall panels">Neon Strip</button>
+        <button type="button" data-layout="diagonal-trio" title="Three slanted panels">Diagonal Trio</button>
+        <button type="button" data-layout="hero-mosaic" title="Hero plus five">Hero Mosaic</button>
       </div>
       <div id="panels" class="row"></div>
     </section>
@@ -41,6 +43,8 @@
       <label>Zoom <input id="zoom" type="range" min="1" max="2.5" step="0.05" value="1.15"></label>
       <label>Pan left–right <input id="panx" type="range" min="-0.4" max="0.4" step="0.01" value="0"></label>
       <label>Pan up–down <input id="pany" type="range" min="-0.4" max="0.4" step="0.01" value="0"></label>
+      <label>Role tag <input id="role" type="text" maxlength="24" value="THE INSIDER"></label>
+      <p class="fine">The character callout on the selected panel. Empty hides it.</p>
       <p class="fine">Click a panel in the preview to select it, then crop it here.</p>
     </section>
 
@@ -48,6 +52,13 @@
       <h2>4 · Words</h2>
       <label>Caption <input id="caption" type="text" maxlength="48" value="Vice Heist"></label>
       <label>Subtitle <input id="subtitle" type="text" maxlength="48" value="Leonida • 2026"></label>
+      <label>Press quote <input id="quote" type="text" maxlength="64" value="Pure Golden-Hour Mayhem"></label>
+      <label>Quote source <input id="quote-source" type="text" maxlength="32" value="The Harbor Gazette"></label>
+      <label>Volume badge <input id="volume" type="text" maxlength="16" value="Vol. 1"></label>
+      <label>Tagline <input id="tagline" type="text" maxlength="64" value="Five Friends • One Coast • No Way Back"></label>
+      <label>Billing block <textarea id="billing" rows="2" maxlength="120">A Sunset Pictures Production • Starring You
+Shot on Your Own Camera • Graded by Hand</textarea></label>
+      <label class="check"><input id="furniture" type="checkbox" checked> Poster furniture (quote, badge, tagline, seal, barcode)</label>
     </section>
 
     <section>
@@ -56,6 +67,9 @@
         <button type="button" data-grade="sunset">Sunset</button>
         <button type="button" data-grade="neon">Neon</button>
         <button type="button" data-grade="palm">Palm</button>
+        <button type="button" data-grade="neon-night">Neon Night</button>
+        <button type="button" data-grade="golden-hour">Golden Hour</button>
+        <button type="button" data-grade="tropic-teal">Tropic Teal</button>
       </div>
     </section>
 
@@ -67,6 +81,7 @@
         <button type="button" data-size="1920x1080">1920 × 1080</button>
       </div>
       <button id="export" type="button" class="primary">Export PNG</button>
+      <button id="export-all" type="button">Export all three sizes</button>
       <p id="status" role="status"></p>
     </section>
 

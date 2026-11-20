@@ -29,6 +29,33 @@ export const GRADES = {
     ],
     vignette: 0.3,
   },
+  'neon-night': {
+    label: 'Neon Night',
+    stops: [
+      [0, 'rgba(10, 20, 90, 0.14)'],
+      [0.5, 'rgba(80, 0, 160, 0.08)'],
+      [1, 'rgba(210, 0, 120, 0.30)'],
+    ],
+    vignette: 0.38,
+  },
+  'golden-hour': {
+    label: 'Golden Hour',
+    stops: [
+      [0, 'rgba(255, 190, 60, 0.10)'],
+      [0.5, 'rgba(255, 120, 40, 0.10)'],
+      [1, 'rgba(180, 40, 20, 0.28)'],
+    ],
+    vignette: 0.26,
+  },
+  'tropic-teal': {
+    label: 'Tropic Teal',
+    stops: [
+      [0, 'rgba(0, 220, 200, 0.12)'],
+      [0.5, 'rgba(0, 120, 160, 0.08)'],
+      [1, 'rgba(10, 40, 120, 0.30)'],
+    ],
+    vignette: 0.3,
+  },
 };
 
 /** Paints a grade's wash and vignette over the whole canvas. */
