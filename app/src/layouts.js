@@ -1,65 +1,122 @@
-// Panel layouts for Vice Frame. A layout is a list of panels. Panel
-// coordinates are fractions of the cover (0..1), so a layout works at any
-// export size. Panels are drawn edge to edge with a neon gap between them;
-// the poster title and furniture are painted over the panels afterwards.
-// A panel may carry `slant`: the fraction of the cover width its top edge
-// shifts right (positive) or left (negative), for diagonal GTA-style
-// dividers between panels.
-export const LAYOUTS = {
-  'vice-grid': {
-    label: 'Vice Grid',
-    panels: [
-      { x: 0, y: 0, w: 0.5, h: 0.5 },
-      { x: 0.5, y: 0, w: 0.5, h: 0.5 },
-      { x: 0, y: 0.5, w: 0.5, h: 0.5 },
-      { x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
-    ],
-  },
-  'sunset-split': {
-    label: 'Sunset Split',
-    panels: [
-      { x: 0, y: 0, w: 0.62, h: 1 },
-      { x: 0.62, y: 0, w: 0.38, h: 0.5 },
-      { x: 0.62, y: 0.5, w: 0.38, h: 0.5 },
-    ],
-  },
-  'neon-strip': {
-    label: 'Neon Strip',
-    panels: [
-      { x: 0, y: 0, w: 1 / 3, h: 1 },
-      { x: 1 / 3, y: 0, w: 1 / 3, h: 1 },
-      { x: 2 / 3, y: 0, w: 1 / 3, h: 1 },
-    ],
-  },
-  'diagonal-trio': {
-    label: 'Diagonal Trio',
-    panels: [
-      { x: 0, y: 0, w: 0.37, h: 1, slant: 0.05 },
-      { x: 0.335, y: 0, w: 0.37, h: 1, slant: 0.05 },
-      { x: 0.67, y: 0, w: 0.33, h: 1, slant: 0.05 },
-    ],
-  },
-  'hero-mosaic': {
-    label: 'Hero Mosaic',
-    panels: [
-      { x: 0, y: 0, w: 0.42, h: 1 },
-      { x: 0.42, y: 0, w: 0.29, h: 0.5 },
-      { x: 0.71, y: 0, w: 0.29, h: 0.5 },
-      { x: 0.42, y: 0.5, w: 0.29, h: 0.5 },
-      { x: 0.71, y: 0.5, w: 0.29, h: 0.5 },
-    ],
-  },
+// Panel arrangements for the Vice Frame cover. A layout is a list of panels,
+// each one a rectangle in unit coordinates (0..1 of the canvas), or a slanted
+// quad given as a polygon when the seams run diagonally. panelRects scales
+// them to pixels and insets rectangular panels by half the gutter so the gap
+// between two neighbours reads as one gutter.
+
+export const LAYOUTS = [
+  { id: 'grid', name: 'Vice Grid', blurb: 'Four equal panels, two by two.' },
+  { id: 'split', name: 'Sunset Split', blurb: 'One hero panel over two small ones.' },
+  { id: 'strip', name: 'Neon Strip', blurb: 'Three tall vertical panels.' },
+  { id: 'trio', name: 'Diagonal Trio', blurb: 'Three slanted panels, seams on the diagonal.' },
+  { id: 'mosaic', name: 'Hero Mosaic', blurb: 'One hero panel beside four small ones.' },
+];
+
+// Unit-space panel shapes. A shape is { x, y, w, h } for a rectangle, or
+// { poly: [[x, y], ...] } for a slanted quad. The trio's seams lean right as
+// they run down: the top of a seam sits at a third of the width and its foot
+// a further eighth to the right, so the three quads tile the whole cover.
+const SHAPES = {
+  grid: [
+    { x: 0, y: 0, w: 0.5, h: 0.5 },
+    { x: 0.5, y: 0, w: 0.5, h: 0.5 },
+    { x: 0, y: 0.5, w: 0.5, h: 0.5 },
+    { x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
+  ],
+  split: [
+    { x: 0, y: 0, w: 1, h: 0.62 },
+    { x: 0, y: 0.62, w: 0.5, h: 0.38 },
+    { x: 0.5, y: 0.62, w: 0.5, h: 0.38 },
+  ],
+  strip: [
+    { x: 0, y: 0, w: 1 / 3, h: 1 },
+    { x: 1 / 3, y: 0, w: 1 / 3, h: 1 },
+    { x: 2 / 3, y: 0, w: 1 / 3, h: 1 },
+  ],
+  trio: [
+    { poly: [[0, 0], [1 / 3, 0], [1 / 3 + 0.125, 1], [0, 1]] },
+    { poly: [[1 / 3, 0], [2 / 3, 0], [2 / 3 + 0.125, 1], [1 / 3 + 0.125, 1]] },
+    { poly: [[2 / 3, 0], [1, 0], [1, 1], [2 / 3 + 0.125, 1]] },
+  ],
+  mosaic: [
+    { x: 0, y: 0, w: 0.58, h: 1 },
+    { x: 0.58, y: 0, w: 0.21, h: 0.5 },
+    { x: 0.79, y: 0, w: 0.21, h: 0.5 },
+    { x: 0.58, y: 0.5, w: 0.21, h: 0.5 },
+    { x: 0.79, y: 0.5, w: 0.21, h: 0.5 },
+  ],
 };
 
-/** Is the point (x, y) in canvas pixels inside this panel (slant aware)? */
-export function panelHit(panel, x, y, w, h) {
-  const px = panel.x * w;
-  const py = panel.y * h;
-  const pw = panel.w * w;
-  const ph = panel.h * h;
-  if (y < py || y >= py + ph) return false;
-  // The panel's left edge slides right as y rises to the top (slant).
-  const shift = (panel.slant || 0) * w;
-  const left = px + shift * (1 - (y - py) / ph);
-  return x >= left && x < left + pw;
+/** The layout record for an id, falling back to the grid when unknown. */
+export function layoutById(id) {
+  return LAYOUTS.find((entry) => entry.id === id) ?? LAYOUTS[0];
+}
+
+/** How many panels a layout shows. */
+export function panelCount(id) {
+  return (SHAPES[id] ?? SHAPES.grid).length;
+}
+
+// Turn a unit shape into a pixel panel: { x, y, w, h } plus, for a slanted
+// panel, `poly` (the same corners in pixels) and `cx`, `cy` (its centre,
+// where a role tag sits). Rectangular panels are inset by half the gutter.
+function toPixels(shape, w, h, gutter) {
+  if (shape.poly) {
+    const pts = shape.poly.map(([px, py]) => [px * w, py * h]);
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    return {
+      x, y,
+      w: Math.max(...xs) - x,
+      h: Math.max(...ys) - y,
+      poly: pts,
+      cx: pts.reduce((sum, p) => sum + p[0], 0) / pts.length,
+      cy: pts.reduce((sum, p) => sum + p[1], 0) / pts.length,
+    };
+  }
+  const half = gutter / 2;
+  return {
+    x: shape.x * w + half,
+    y: shape.y * h + half,
+    w: shape.w * w - gutter,
+    h: shape.h * h - gutter,
+    poly: null,
+    cx: (shape.x + shape.w / 2) * w,
+    cy: (shape.y + shape.h / 2) * h,
+  };
+}
+
+/** Pixel panels for a layout on a canvas of width w and height h. */
+export function panelRects(id, w, h, gutter = 10) {
+  const shapes = SHAPES[id] ?? SHAPES.grid;
+  return shapes.map((shape) => toPixels(shape, w, h, gutter));
+}
+
+/** The index of the panel holding point (px, py), or -1 when it is in a gap. */
+export function panelAt(id, w, h, px, py, gutter = 10) {
+  const rects = panelRects(id, w, h, gutter);
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    if (r.poly) {
+      if (pointInPoly(px, py, r.poly)) return i;
+    } else if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+// Even-odd test for a point inside a polygon.
+function pointInPoly(px, py, poly) {
+  let inside = false;
+  for (let a = 0, b = poly.length - 1; a < poly.length; b = a++) {
+    const [ax, ay] = poly[a];
+    const [bx, by] = poly[b];
+    if (ay > py !== by > py && px < ((bx - ax) * (py - ay)) / (by - ay) + ax) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }

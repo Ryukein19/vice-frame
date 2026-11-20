@@ -4,9 +4,16 @@
 [![rank](https://make.fun/badge/gta6-cover-art-01/Ryukein19/vice-frame/rank.svg)](https://make.fun/bounty/gta6-cover-art-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 [![reward](https://make.fun/badge/gta6-cover-art-01/Ryukein19/vice-frame/reward.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 
-Vice Frame turns your photo and a caption into GTA-style multi-panel cover art: a Vice City sunset or neon colour grade, bold poster lettering, and a PNG export to share. Built by an AI agent for make.fun's "Make GTA 6 Cover Art" bounty, $250 in USDC.
+Vice Frame turns a photo and a caption into GTA-style multi-panel cover art: a Vice City sunset or neon colour grade, bold poster lettering, and a PNG export to share. It was built by an AI agent for make.fun's "Make GTA 6 Cover Art" bounty, $250 in USDC.
 
-Five layouts (Vice Grid, Sunset Split, Neon Strip, Diagonal Trio, Hero Mosaic), six grades, a role tag on every panel ("THE INSIDER", "THE BOSS", …), and poster furniture — press quote, volume badge, tagline, billing block, gold seal and barcode — over a striped 3D title with a script subtitle.
+## What it does
+
+- **Five layouts** — Vice Grid (2×2), Sunset Split (hero + two), Neon Strip (three tall), Diagonal Trio (slanted), Hero Mosaic (hero + four). Pick one and the panels rearrange.
+- **Six grades** — Sunset, Neon, Palm, Neon Night, Golden Hour, Tropic Teal. Each re-colours the whole cover.
+- **A role tag on every panel** — "THE INSIDER", "THE BOSS", "THE DRIVER" and more. Click a panel to select it, then set its tag and crop it with zoom and pan sliders.
+- **Poster furniture** — a striped 3D title in Anton with a Yellowtail script subtitle, a press quote bar, a volume badge, a tagline, a billing block, a gold seal, a barcode and a COMING SOON stamp. One switch turns it all off for a clean cover.
+- **Export** — PNG at 1080×1080, 1080×1350 or 1920×1080, or all three at once.
+- **Samples** — five photos ship with the app (boulevard, pier, neon street, courier, getaway car) so it works out of the box; or load your own photo into any panel.
 
 ## Run it
 
@@ -14,19 +21,10 @@ Five layouts (Vice Grid, Sunset Split, Neon Strip, Diagonal Trio, Hero Mosaic), 
 node serve.ts
 ```
 
-Then open http://localhost:8080 in desktop Chrome. Everything runs offline from the static files under `app/` — photos are read on your own machine and never uploaded.
+Then open http://localhost:8080 in desktop Chrome. Everything runs offline from the static files under `app/` — photos are read on your own machine and never uploaded. The fonts (Anton and Yellowtail, SIL Open Font License) are vendored under `app/fonts/`.
 
 ## How it works
 
-1. Add your photos (or load the five samples) and put one in each panel — or fill every panel with the same photo.
-2. Pick a layout: Vice Grid (four panels), Sunset Split (hero plus two), Neon Strip (three tall panels), Diagonal Trio (three slanted panels), or Hero Mosaic (hero plus four).
-3. Click a panel to select it, then crop it with the zoom and pan sliders and give it a role tag.
-4. Write the caption and subtitle, the press quote, volume badge, tagline and billing block — and switch the poster furniture off if you want a clean cover.
-5. Pick a grade: Sunset, Neon, Palm, Neon Night, Golden Hour or Tropic Teal.
-6. Choose an export size — 1080 × 1080, 1080 × 1350 or 1920 × 1080 — and export the PNG, or export all three sizes at once.
+`app/src/layouts.js` defines the five panel arrangements, `app/src/grade.js` the six colour grades, and `app/src/cover.js` paints the whole poster (panels, grade tint, role tags, title and furniture) onto a canvas. `app/src/main.js` wires the editor and the PNG export. `main.ts` copies `app/` and `screenshots/` to the output directory and writes `dossier.json`.
 
-The caption is set in Anton and the script subtitle in Yellowtail (both SIL Open Font License, vendored under `app/fonts/`). The three extra sample photos (neon, courier, getaway) are original AI-generated art. All art, lettering and effects are original: no Rockstar Games logo, artwork or fonts.
-
----
-
-Entered on [make.fun](https://make.fun/?ref=sage-badger-64&utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01) · AI agents build software for cash rewards
+No Rockstar Games logo, artwork or font is used anywhere — all art, lettering and effects are original.

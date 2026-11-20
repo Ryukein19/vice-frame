@@ -1,73 +1,77 @@
-// Colour grades for Vice Frame. A grade is a translucent vertical gradient
-// washed over the whole cover after the panels are drawn, plus a vignette that
-// pulls the eye to the middle. All colours are our own sunset / neon palette.
-export const GRADES = {
-  sunset: {
-    label: 'Sunset',
-    stops: [
-      [0, 'rgba(255, 176, 66, 0)'],
-      [0.55, 'rgba(255, 110, 80, 0.10)'],
-      [1, 'rgba(214, 48, 120, 0.34)'],
-    ],
-    vignette: 0.28,
-  },
-  neon: {
-    label: 'Neon',
-    stops: [
-      [0, 'rgba(0, 229, 255, 0.10)'],
-      [0.5, 'rgba(255, 0, 128, 0.05)'],
-      [1, 'rgba(120, 0, 255, 0.30)'],
-    ],
-    vignette: 0.34,
-  },
-  palm: {
-    label: 'Palm',
-    stops: [
-      [0, 'rgba(0, 200, 170, 0.12)'],
-      [0.6, 'rgba(20, 90, 140, 0.08)'],
-      [1, 'rgba(40, 10, 80, 0.32)'],
-    ],
-    vignette: 0.3,
-  },
-  'neon-night': {
-    label: 'Neon Night',
-    stops: [
-      [0, 'rgba(10, 20, 90, 0.14)'],
-      [0.5, 'rgba(80, 0, 160, 0.08)'],
-      [1, 'rgba(210, 0, 120, 0.30)'],
-    ],
-    vignette: 0.38,
-  },
-  'golden-hour': {
-    label: 'Golden Hour',
-    stops: [
-      [0, 'rgba(255, 190, 60, 0.10)'],
-      [0.5, 'rgba(255, 120, 40, 0.10)'],
-      [1, 'rgba(180, 40, 20, 0.28)'],
-    ],
-    vignette: 0.26,
-  },
-  'tropic-teal': {
-    label: 'Tropic Teal',
-    stops: [
-      [0, 'rgba(0, 220, 200, 0.12)'],
-      [0.5, 'rgba(0, 120, 160, 0.08)'],
-      [1, 'rgba(10, 40, 120, 0.30)'],
-    ],
-    vignette: 0.3,
-  },
-};
+// Colour grades for the Vice Frame cover. A grade is a canvas filter the
+// panels are painted through, a two-stop tint washed over them, and a glow
+// colour used for the title's halo and the furniture accents. The names are
+// the Vice City moods: a sunset, a neon night, palm shade, golden hour and
+// the tropics.
 
-/** Paints a grade's wash and vignette over the whole canvas. */
-export function applyGrade(ctx, w, h, grade) {
-  const wash = ctx.createLinearGradient(0, 0, 0, h);
-  for (const [at, color] of grade.stops) wash.addColorStop(at, color);
-  ctx.fillStyle = wash;
-  ctx.fillRect(0, 0, w, h);
-  const radius = Math.hypot(w, h) / 2;
-  const vig = ctx.createRadialGradient(w / 2, h / 2, radius * 0.45, w / 2, h / 2, radius);
-  vig.addColorStop(0, 'rgba(10, 4, 20, 0)');
-  vig.addColorStop(1, `rgba(10, 4, 20, ${grade.vignette})`);
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, 0, w, h);
+export const GRADES = [
+  {
+    id: 'sunset',
+    name: 'Sunset',
+    filter: 'saturate(1.25) contrast(1.06) sepia(0.18)',
+    tintTop: 'rgba(255, 122, 64, 0.10)',
+    tintBottom: 'rgba(198, 38, 118, 0.48)',
+    glow: '#ff7a40',
+  },
+  {
+    id: 'neon',
+    name: 'Neon',
+    filter: 'saturate(1.55) contrast(1.16) hue-rotate(-12deg)',
+    tintTop: 'rgba(255, 45, 149, 0.16)',
+    tintBottom: 'rgba(28, 220, 255, 0.34)',
+    glow: '#ff2d95',
+  },
+  {
+    id: 'palm',
+    name: 'Palm',
+    filter: 'saturate(1.32) contrast(1.05) hue-rotate(14deg)',
+    tintTop: 'rgba(64, 224, 160, 0.12)',
+    tintBottom: 'rgba(8, 120, 90, 0.42)',
+    glow: '#40e0a0',
+  },
+  {
+    id: 'night',
+    name: 'Neon Night',
+    filter: 'brightness(0.92) saturate(1.65) contrast(1.22) hue-rotate(18deg)',
+    tintTop: 'rgba(90, 40, 200, 0.20)',
+    tintBottom: 'rgba(10, 8, 48, 0.55)',
+    glow: '#8a5cff',
+  },
+  {
+    id: 'golden',
+    name: 'Golden Hour',
+    filter: 'sepia(0.38) saturate(1.42) contrast(1.06)',
+    tintTop: 'rgba(255, 196, 66, 0.14)',
+    tintBottom: 'rgba(214, 110, 24, 0.44)',
+    glow: '#ffc442',
+  },
+  {
+    id: 'teal',
+    name: 'Tropic Teal',
+    filter: 'saturate(1.38) contrast(1.08) hue-rotate(24deg)',
+    tintTop: 'rgba(45, 226, 216, 0.12)',
+    tintBottom: 'rgba(6, 90, 120, 0.46)',
+    glow: '#2de2d8',
+  },
+];
+
+/** The grade record for an id, falling back to Sunset when unknown. */
+export function gradeById(id) {
+  return GRADES.find((entry) => entry.id === id) ?? GRADES[0];
+}
+
+/** The canvas filter string a grade paints its panels through. */
+export function gradeFilter(id) {
+  return gradeById(id).filter;
+}
+
+/** The two tint stops a grade washes from a panel's top to its foot. */
+export function gradeTint(id) {
+  const g = gradeById(id);
+  return [g.tintTop, g.tintBottom];
+}
+
+/** The accent colour a grade lends the title halo and the furniture. */
+export function gradeGlow(id) {
+  return gradeById(id).glow;
 }
