@@ -1,53 +1,42 @@
-// Fixed scenes for screenshots. `?shot=cover` shows the cover alone and
-// `?shot=editor` shows the editor with a photo loaded; the query picks the
-// layout, grade, sample photos and every line of poster text, so a shot is a
-// full cover in a chosen mood. window.__shotReady is set once it is painted.
-// Any of the twelve layouts and ten grades can be picked through the query
-// (layout= / grade=), so a shot can show the round-4 additions too.
-const DEFAULT_ROLES = ['THE INSIDER', 'THE BOSS', 'THE DRIVER', 'THE LOOKOUT', 'THE FIXER'];
+// Vice Frame — screenshot mode.
+// The screenshot runner loads the app with ?shot=<name>&photo=<sample>
+// &caption=<text> and waits for the page to settle, so the shots are
+// deterministic: same query, same cover. The runner (headless Chrome)
+// screenshots the page; this module only arranges the view.
+//   shot=cover    — the cover alone, filling the frame, furniture on.
+//   shot=editor   — the full editor with a photo loaded and a panel selected.
+//   shot=wide     — the cover in wide 1920x1080.
+//   shot=portrait — the cover in portrait 1080x1350.
+// Without ?shot the app opens normally in the editor.
 
-function splitList(value, fallback) {
-  const parts = String(value ?? '')
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-  return parts.length ? parts : fallback;
-}
-
-/** Reads a shot scene out of the query string. */
-export function sceneFromQuery(query) {
+export function shotParams() {
+  const q = new URLSearchParams(location.search);
   return {
-    layout: query.get('layout') ?? 'grid',
-    grade: query.get('grade') ?? 'sunset',
-    photos: splitList(query.get('photo'), ['pier']),
-    roles: splitList(query.get('roles'), DEFAULT_ROLES),
-    caption: query.get('caption') ?? 'Sunset Heist',
-    subtitle: query.get('subtitle') ?? 'Vice City',
-    quote: query.get('quote') ?? 'The city never sleeps. Neither do we.',
-    volume: query.get('volume') ?? '1',
-    tagline: query.get('tagline') ?? 'Every empire starts with one job',
-    billing: query.get('billing') ?? 'A Vice Frame original',
-    furniture: query.get('furniture') !== '0',
+    shot: q.get('shot') || '',
+    photo: q.get('photo') || '',
+    caption: q.get('caption') || '',
+    layout: q.get('layout') || '',
+    grade: q.get('grade') || '',
   };
 }
 
-/**
- * Runs a shot: builds the scene from the query, hands it to `apply` (which
- * loads the photos and paints), then marks the page ready for the capture.
- */
-export async function runShot(shot, query, apply) {
-  if (shot === 'cover') document.body.classList.add('shot-cover');
-  const scene = sceneFromQuery(query);
-  await apply(scene);
-  // Let the fonts settle, then paint twice so the capture sees the final
-  // frame even if a webfont arrived late.
-  if (document.fonts?.ready) {
-    try {
-      await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]);
-    } catch {
-      // A font that never arrives still leaves a painted cover.
-    }
-    await apply(scene);
+// Apply the shot query to the state before the first render. Returns true
+// when the page is in a shot (so the editor chrome is hidden for cover
+// shots and shown for editor shots).
+export function applyShot(state, params) {
+  if (!params.shot) return false;
+  if (params.photo) {
+    const slot = state.panels.find((p) => p.photo === `samples/${params.photo}.jpg`) ?? state.panels[0];
+    if (slot) slot.photo = `samples/${params.photo}.jpg`;
   }
-  requestAnimationFrame(() => requestAnimationFrame(() => { window.__shotReady = true; }));
+  if (params.caption) state.caption = params.caption;
+  if (params.layout) state.layout = params.layout;
+  if (params.grade) state.grade = params.grade;
+  return true;
+}
+
+// Mark the cover as ready for the screenshot runner: the runner waits for
+// document.title to carry "ready" before it shoots.
+export function markReady(kind) {
+  document.title = `Vice Frame — ${kind} — ready`;
 }

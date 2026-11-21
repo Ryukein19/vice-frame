@@ -1,41 +1,47 @@
-// Vice Frame, handed in. The app lives in app/ beside this file as plain
-// static files (index.html and its ES modules, no build step, no network),
-// and this program is the handoff: it copies app/ and screenshots/ into the
+// Vice Frame — the entrypoint (Node 22, standard library only).
+// Hands the app in: copies this repository's app/ and screenshots/ into the
 // output directory and writes dossier.json, the summary the judge reads,
-// using the vendored make.fun library. Node 22, standard library only, and
-// deterministic: two runs write identical bytes. Outside the grader's
-// container, MAKEFUN_OUTPUT_DIR stands in for /output:
+// using the vendored make.fun library. Deterministic: two runs write the
+// same bytes. Run it outside the grader with MAKEFUN_OUTPUT_DIR:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-// Round 4 adds twelve layouts, ten grades, a focal-point smart crop and a
-// pop-out hero to the app this copies; the handoff itself is unchanged.
+// Serve the app locally with `node serve.ts` (http://localhost:8080).
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-app.ts';
 
-const repoDir = fileURLToPath(new URL('.', import.meta.url));
-const destDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+// The repository root is the directory this file sits in.
+const root = fileURLToPath(new URL('.', import.meta.url));
+const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-function handIn() {
-  mkdirSync(destDir, { recursive: true });
-  cpSync(join(repoDir, 'app'), join(destDir, 'app'), { recursive: true });
-  const shotsDir = join(repoDir, 'screenshots');
-  if (existsSync(shotsDir)) {
-    cpSync(shotsDir, join(destDir, 'screenshots'), { recursive: true });
+// Copy a directory tree, skipping nothing: the app is plain files.
+function copyTree(from, to) {
+  mkdirSync(to, { recursive: true });
+  for (const name of readdirSync(from)) {
+    const src = join(from, name);
+    const dst = join(to, name);
+    if (statSync(src).isDirectory()) copyTree(src, dst);
+    else cpSync(src, dst);
   }
-  // The scorer's own caps (reference/gate.json): text_max_bytes shapes the
-  // dossier's text; the rest refuse an entry the scorer would refuse — more
-  // than 4 screenshots or one over 256 KiB, more than 993 files in app/ or
-  // 48 MiB of app files in all, or a path under app/ over 1000 bytes.
-  const dossier = buildDossier(destDir, {
-    text_max_bytes: 163840,
-    screenshots: { max: 4, max_bytes: 262144 },
-    app_max_files: 993,
-    app_max_bytes: 50331648,
-    app_path_max_bytes: 1000,
-  });
-  writeFileSync(join(destDir, 'dossier.json'), dossier);
 }
 
-handIn();
+mkdirSync(outDir, { recursive: true });
+copyTree(join(root, 'app'), join(outDir, 'app'));
+mkdirSync(join(outDir, 'screenshots'), { recursive: true });
+if (existsSync(join(root, 'screenshots'))) {
+  copyTree(join(root, 'screenshots'), join(outDir, 'screenshots'));
+}
+
+// The gate's caps for this bounty: the dossier text, the screenshots, and
+// the app are each held to them, so an entry that breaks one is refused
+// before the judge ever sees it. Only text_max_bytes changes the bytes
+// written; the rest are enforced by the scorer on the output.
+const dossier = buildDossier(outDir, {
+  text_max_bytes: 163840,
+  screenshots: { max: 4, max_bytes: 262144 },
+  app_max_files: 993,
+  app_max_bytes: 50331648,
+  app_path_max_bytes: 1000,
+});
+writeFileSync(join(outDir, 'dossier.json'), dossier);

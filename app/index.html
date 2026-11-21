@@ -3,59 +3,86 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vice Frame — GTA-style cover art maker</title>
+<title>Vice Frame — GTA-style cover art studio</title>
+<style>
+  @font-face { font-family: 'Anton'; src: url('./fonts/anton.woff2') format('woff2'); font-display: swap; }
+  @font-face { font-family: 'Yellowtail'; src: url('./fonts/yellowtail.woff2') format('woff2'); font-display: swap; }
+</style>
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<header class="top">
-  <h1>Vice Frame</h1>
-  <p>Your photo and a caption, made into GTA-style multi-panel cover art.</p>
-</header>
 <main class="app">
-  <section class="controls" aria-label="Cover controls">
-    <div class="group">
-      <h2>Layout — <span id="layout-name">Vice Grid</span></h2>
-      <div id="layout-pick" class="picks" role="group" aria-label="Layout"></div>
-    </div>
-    <div class="group">
-      <h2>Grade — <span id="grade-name">Sunset</span></h2>
-      <div id="grade-pick" class="picks" role="group" aria-label="Colour grade"></div>
-    </div>
-    <div class="group">
-      <h2 id="panel-label">Panel 1 of 4</h2>
-      <p class="hint">Click a panel on the cover to select it, then crop it and give it a role.</p>
-      <label>Photo for this panel <input id="photo" type="file" accept="image/*"></label>
-      <button id="load-samples" type="button">Load the sample photos</button>
-      <label>Zoom <input id="zoom" type="range" min="1" max="3" step="0.05" value="1"></label>
-      <label>Pan left–right <input id="panx" type="range" min="-0.5" max="0.5" step="0.01" value="0"></label>
-      <label>Pan up–down <input id="pany" type="range" min="-0.5" max="0.5" step="0.01" value="0"></label>
-      <label>Role tag <input id="role" type="text" maxlength="24" value="THE INSIDER"></label>
-      <label class="check"><input id="smart-crop" type="checkbox"> Smart crop — click a face on the cover to pin it as this panel's focal point</label>
-      <button id="reset-focal" type="button">Reset focal point</button>
-    </div>
-    <div class="group">
-      <h2>Poster text</h2>
-      <label>Caption <input id="caption" type="text" maxlength="40" value="Sunset Heist"></label>
-      <label>Script subtitle <input id="subtitle" type="text" maxlength="40" value="Vice City"></label>
-      <label>Press quote <input id="quote" type="text" maxlength="80" value="The city never sleeps. Neither do we."></label>
-      <label>Volume <input id="volume" type="text" maxlength="12" value="1"></label>
-      <label>Tagline <input id="tagline" type="text" maxlength="60" value="Every empire starts with one job"></label>
-      <label>Billing <input id="billing" type="text" maxlength="90" value="A Vice Frame original · Made with photos on your own machine"></label>
-      <label class="check"><input id="furniture" type="checkbox" checked> Poster furniture (title, quote, badge, seal, barcode, stamp)</label>
-      <label class="check"><input id="popout" type="checkbox"> Pop-out hero — the biggest panel breaks its frame, tilted and lifted</label>
-    </div>
-    <div class="group">
-      <h2>Export PNG</h2>
-      <div class="exports">
-        <button id="export-square" type="button">1080 × 1080</button>
-        <button id="export-portrait" type="button">1080 × 1350</button>
-        <button id="export-wide" type="button">1920 × 1080</button>
-        <button id="export-all" type="button" class="wide">Export all three sizes</button>
+  <section class="controls" aria-label="Editor">
+    <header>
+      <h1>VICE FRAME</h1>
+      <p class="tag">Turn your photos into GTA-style multi-panel cover art. Pick a layout and a grade, crop each panel to the face, then export the PNG.</p>
+    </header>
+
+    <section class="group">
+      <h2>1 · Layout</h2>
+      <div id="layout-picker" class="picker" role="group" aria-label="Layout"></div>
+    </section>
+
+    <section class="group">
+      <h2>2 · Colour grade</h2>
+      <div id="grade-picker" class="picker" role="group" aria-label="Colour grade"></div>
+    </section>
+
+    <section class="group">
+      <h2>3 · Photos</h2>
+      <div class="row">
+        <label class="upload">Upload a photo
+          <input id="photo" type="file" accept="image/*">
+        </label>
+        <button id="load-samples" type="button" class="btn">Load the samples</button>
       </div>
+      <div id="sample-picker" class="picker" role="group" aria-label="Sample photos"></div>
+      <div id="panel-slots" class="picker" role="group" aria-label="Panels"></div>
+      <p class="hint">Click a panel in the cover to select it, drag it to move the focus, or use the arrow keys. “Auto-focus” finds the subject.</p>
+    </section>
+
+    <section class="group">
+      <h2>4 · The selected panel</h2>
+      <label>Role tag <input id="ed-role" type="text" maxlength="18" value="THE INSIDER"></label>
+      <label>Zoom <span class="val" id="ed-zoom-out">1.0×</span>
+        <input id="ed-zoom" type="range" min="1" max="3" step="0.1" value="1">
+      </label>
+      <button id="ed-autofocus" type="button" class="btn">Auto-focus on the subject</button>
+    </section>
+
+    <section class="group">
+      <h2>5 · Poster words</h2>
+      <label>Caption (title) <input id="ed-caption" type="text" maxlength="24" value="VICE HEIST"></label>
+      <label>Subtitle (script) <input id="ed-subtitle" type="text" maxlength="40" value="a vice city story"></label>
+      <label>Press quote <input id="ed-quote" type="text" maxlength="60" value="THE HOTTEST RIDE OF THE YEAR"></label>
+      <label>Quote source <input id="ed-quote-source" type="text" maxlength="30" value="VICE CITY GAZETTE"></label>
+      <label>Volume <input id="ed-volume" type="text" maxlength="12" value="VOL. 1"></label>
+      <label>Tagline <input id="ed-tagline" type="text" maxlength="48" value="EVERY SUNSET HAS A PRICE"></label>
+      <label>Billing <input id="ed-billing" type="text" maxlength="90" value="VICE FRAME PICTURES  •  A SUNSET HEIST  •  STARRING THE CREW  •  COMING SOON"></label>
+      <label class="check"><input id="ed-furniture" type="checkbox" checked> Poster furniture (title, quote, seal, barcode, stamp)</label>
+    </section>
+
+    <section class="group">
+      <h2>6 · Export</h2>
+      <div class="picker" role="group" aria-label="Cover size">
+        <button type="button" class="pick" data-size="square">Square 1080×1080</button>
+        <button type="button" class="pick" data-size="portrait">Portrait 1080×1350</button>
+        <button type="button" class="pick" data-size="wide">Wide 1920×1080</button>
+      </div>
+      <div class="row">
+        <button type="button" class="btn primary" data-export="square">Export square</button>
+        <button type="button" class="btn primary" data-export="portrait">Export portrait</button>
+        <button type="button" class="btn primary" data-export="wide">Export wide</button>
+      </div>
+      <button id="export-all" type="button" class="btn primary wide">Export all three sizes</button>
       <p id="status" role="status"></p>
-    </div>
+    </section>
   </section>
-  <canvas id="cover" width="1080" height="1080" aria-label="The cover"></canvas>
+
+  <section class="stage" aria-label="Cover preview">
+    <div id="cover" class="cover" style="aspect-ratio: 1 / 1"></div>
+    <p class="stage-hint">Live preview — the PNG exports exactly this cover.</p>
+  </section>
 </main>
 <script type="module" src="./src/main.js"></script>
 </body>
