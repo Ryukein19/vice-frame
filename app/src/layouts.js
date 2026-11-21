@@ -1,107 +1,53 @@
-// Vice Frame — panel layouts.
-// Each layout is a function of the cover size (W, H in pixels) that returns
-// the panels that fill the art area. A panel is { x, y, w, h } in fractions
-// of the cover, plus optional hero (the big panel) and slant (a diagonal
-// shear in fractions of the panel width, applied to the top edge).
-// The art area is the whole cover; the title band and the furniture strip
-// overlay it, GTA-poster style, so panels run edge to edge.
-
-export const LAYOUTS = {
-  grid: {
-    name: 'Vice Grid',
-    blurb: 'Four equal panels, 2 by 2.',
-    panels(W, H) {
-      const g = 0.012;
-      const hw = 0.5 - g;
-      const hh = 0.5 - g;
-      return [
-        { id: 'p0', x: g, y: g, w: hw, h: hh, hero: false },
-        { id: 'p1', x: 0.5 + g, y: g, w: hw, h: hh, hero: false },
-        { id: 'p2', x: g, y: 0.5 + g, w: hw, h: hh, hero: false },
-        { id: 'p3', x: 0.5 + g, y: 0.5 + g, w: hw, h: hh, hero: false },
-      ];
-    },
+// Panel layouts. Every panel is a fraction of the cover (x, y, w, h in 0..1) and
+// names the photo it shows and the role tag printed on it. A layout with a hero
+// panel puts the title inside that panel; the others take a single centred line.
+export const LAYOUTS = [
+  {
+    key: 'mosaic', name: 'Hero Mosaic',
+    panels: [
+      { photo: 'face', tag: 'THE FIXER', x: 0.30, y: 0.085, w: 0.40, h: 0.53, hero: true },
+      { photo: 'courier', tag: 'THE DRIVER', x: 0.02, y: 0.63, w: 0.2325, h: 0.225 },
+      { photo: 'street', tag: 'THE HIDEOUT', x: 0.2625, y: 0.63, w: 0.2325, h: 0.225 },
+      { photo: 'car', tag: 'THE GETAWAY', x: 0.505, y: 0.63, w: 0.2325, h: 0.225 },
+      { photo: 'pier', tag: 'THE INSIDER', x: 0.7475, y: 0.63, w: 0.2325, h: 0.225 },
+    ],
   },
-
-  split: {
-    name: 'Sunset Split',
-    blurb: 'One hero panel with two small panels stacked beside it.',
-    panels(W, H) {
-      const g = 0.012;
-      const heroW = 0.62 - g;
-      const sideX = 0.62 + g;
-      const sideW = 1 - sideX - g;
-      const halfH = 0.5 - g;
-      return [
-        { id: 'p0', x: g, y: g, w: heroW, h: 1 - 2 * g, hero: true },
-        { id: 'p1', x: sideX, y: g, w: sideW, h: halfH, hero: false },
-        { id: 'p2', x: sideX, y: 0.5 + g, w: sideW, h: halfH, hero: false },
-      ];
-    },
+  {
+    key: 'grid', name: 'Vice Grid',
+    panels: [
+      { photo: 'face', tag: 'THE FIXER', x: 0.02, y: 0.085, w: 0.48, h: 0.38 },
+      { photo: 'courier', tag: 'THE DRIVER', x: 0.51, y: 0.085, w: 0.48, h: 0.38 },
+      { photo: 'street', tag: 'THE HIDEOUT', x: 0.02, y: 0.475, w: 0.48, h: 0.38 },
+      { photo: 'car', tag: 'THE GETAWAY', x: 0.51, y: 0.475, w: 0.48, h: 0.38 },
+    ],
   },
-
-  strip: {
-    name: 'Neon Strip',
-    blurb: 'Three tall vertical panels.',
-    panels(W, H) {
-      const g = 0.012;
-      const w = (1 - 4 * g) / 3;
-      return [
-        { id: 'p0', x: g, y: g, w, h: 1 - 2 * g, hero: false },
-        { id: 'p1', x: g * 2 + w, y: g, w, h: 1 - 2 * g, hero: true },
-        { id: 'p2', x: g * 3 + 2 * w, y: g, w, h: 1 - 2 * g, hero: false },
-      ];
-    },
+  {
+    key: 'split', name: 'Sunset Split',
+    panels: [
+      { photo: 'face', tag: 'THE FIXER', x: 0.02, y: 0.085, w: 0.56, h: 0.77, hero: true },
+      { photo: 'courier', tag: 'THE DRIVER', x: 0.59, y: 0.085, w: 0.39, h: 0.38 },
+      { photo: 'street', tag: 'THE HIDEOUT', x: 0.59, y: 0.475, w: 0.39, h: 0.38 },
+    ],
   },
-
-  diagonal: {
-    name: 'Diagonal Trio',
-    blurb: 'Three slanted panels, like a comic slash.',
-    panels(W, H) {
-      const g = 0.012;
-      const w = (1 - 4 * g) / 3;
-      const slant = 0.16;
-      return [
-        { id: 'p0', x: g, y: g, w, h: 1 - 2 * g, hero: false, slant },
-        { id: 'p1', x: g * 2 + w, y: g, w, h: 1 - 2 * g, hero: true, slant },
-        { id: 'p2', x: g * 3 + 2 * w, y: g, w, h: 1 - 2 * g, hero: false, slant },
-      ];
-    },
+  {
+    key: 'strip', name: 'Neon Strip',
+    panels: [
+      { photo: 'courier', tag: 'THE DRIVER', x: 0.02, y: 0.085, w: 0.315, h: 0.77 },
+      { photo: 'face', tag: 'THE FIXER', x: 0.345, y: 0.085, w: 0.31, h: 0.77 },
+      { photo: 'car', tag: 'THE GETAWAY', x: 0.665, y: 0.085, w: 0.315, h: 0.77 },
+    ],
   },
-
-  mosaic: {
-    name: 'Hero Mosaic',
-    blurb: 'One big hero with four small panels around it.',
-    panels(W, H) {
-      const g = 0.012;
-      const heroW = 0.58 - g;
-      const heroH = 0.62 - g;
-      const sideX = 0.58 + g;
-      const sideW = 1 - sideX - g;
-      const smallH = (1 - 3 * g) / 2;
-      const botY = 0.62 + g;
-      const botW = (1 - 3 * g) / 2;
-      return [
-        { id: 'p0', x: g, y: g, w: heroW, h: heroH, hero: true },
-        { id: 'p1', x: sideX, y: g, w: sideW, h: smallH, hero: false },
-        { id: 'p2', x: sideX, y: g * 2 + smallH, w: sideW, h: smallH, hero: false },
-        { id: 'p3', x: g, y: botY, w: botW, h: 1 - botY - g, hero: false },
-        { id: 'p4', x: g * 2 + botW, y: botY, w: botW, h: 1 - botY - g, hero: false },
-      ];
-    },
+  {
+    key: 'trio', name: 'Diagonal Trio',
+    panels: [
+      { photo: 'pier', tag: 'THE INSIDER', x: 0.05, y: 0.085, w: 0.29, h: 0.77, slant: 0.03 },
+      { photo: 'face', tag: 'THE FIXER', x: 0.36, y: 0.085, w: 0.29, h: 0.77, slant: 0.03 },
+      { photo: 'street', tag: 'THE HIDEOUT', x: 0.67, y: 0.085, w: 0.29, h: 0.77, slant: 0.03 },
+    ],
   },
-};
+];
 
-export const LAYOUT_ORDER = ['grid', 'split', 'strip', 'diagonal', 'mosaic'];
-
-// The panel rectangles for a layout, in pixels, given the cover size.
-export function layoutPanels(layoutId, W, H) {
-  const def = LAYOUTS[layoutId] ?? LAYOUTS.grid;
-  return def.panels(W, H).map((p) => ({
-    ...p,
-    px: p.x * W,
-    py: p.y * H,
-    pw: p.w * W,
-    ph: p.h * H,
-  }));
+/** Looks a layout up by its key, falling back to Hero Mosaic. */
+export function layoutByKey(key) {
+  return LAYOUTS.find((l) => l.key === key) || LAYOUTS[0];
 }

@@ -1,399 +1,342 @@
-// Vice Frame — cover rendering.
-// One layout math drives both the live DOM preview and the exported PNG,
-// so what you see is what the PNG holds. The cover is a movie poster:
-// a 5-star press-quote bar across the top, a huge striped chrome 3D title
-// in the centre overlapping the panels, and a furniture band along the
-// bottom (tagline, billing, COMING SOON, barcode, rosette seal). The hero
-// panel pops out of the grid with a border and a shadow, and the whole
-// cover wears one cohesive grade.
+// Cover renderer. One function, renderCover, draws the whole poster — the DOM
+// live preview and the PNG export both call it, so what you see is what you get.
+// The title geometry lives in titleLayout so the preview and the export can never
+// disagree about where the title sits.
+import { gradeByKey } from './grades.js';
+import { layoutByKey } from './layouts.js';
+import { coverRect } from './crop.js';
 
-import { layoutPanels } from './layouts.js';
-import { GRADES, titleShade } from './grades.js';
-import { cropRect } from './crop.js';
+const TOP_BAR = 0.075; // top bar (stars + press quote + VOL. 1), fraction of height
+const BOTTOM_BAND = 0.865; // bottom furniture band starts here
 
-export const SIZES = {
-  square: { w: 1080, h: 1080, label: 'Square 1080 × 1080' },
-  portrait: { w: 1080, h: 1350, label: 'Portrait 1080 × 1350' },
-  wide: { w: 1920, h: 1080, label: 'Wide 1920 × 1080' },
-};
-
-const ROLE_DEFAULTS = ['THE FIXER', 'THE DRIVER', 'THE HIDEOUT', 'THE GETAWAY', 'THE INSIDER', 'OCEAN DRIVE'];
-
-// The panels a layout shows, each paired with the user's photo state.
-export function coverPanels(state, W, H) {
-  const rects = layoutPanels(state.layout, W, H);
-  return rects.map((r, i) => ({
-    ...r,
-    slot: state.panels[i] ?? {},
-    role: state.panels[i]?.role ?? ROLE_DEFAULTS[i % ROLE_DEFAULTS.length],
-  }));
-}
-
-// Title geometry, shared by the DOM preview and the canvas export so
-// both draw the same title. A two-word caption stacks as two lines,
-// each sized to the hero panel and centred on it, so the whole title
-// reads inside one panel instead of straddling the gap between two.
-// A caption of any other length keeps the old single line across the
-// cover. Returns the lines, the font size, the centre x, each line's
-// centre y, the subtitle's y and size, and the band box (top + height).
-function titleLayout(state, W, H) {
-  const caption = (state.caption || 'SUNSET HEIST').toUpperCase();
-  const words = caption.split(/\s+/).filter(Boolean);
-  const panels = coverPanels(state, W, H);
-  const hero = panels.find((p) => p.hero);
-  if (words.length === 2 && hero) {
-    const longest = Math.max(words[0].length, words[1].length);
-    const lineH = 0.95;
-    const subK = 0.34;
-    const blockK = 2 * lineH + subK * 1.1;
-    // The block must fit between the top bar and the hero's base.
-    const availH = hero.py + hero.ph - H * 0.09;
-    const size = Math.min(
-      W * 0.16,
-      (hero.pw * 0.92) / (longest * 0.62),
-      availH / blockK,
-    );
-    const lh = size * lineH;
-    const subSize = size * subK;
-    const blockH = 2 * lh + subSize * 1.1;
-    const top = Math.max(H * 0.09, hero.py + hero.ph / 2 - blockH / 2);
-    return {
-      lines: words, size, cx: hero.px + hero.pw / 2,
-      lineY: [top + lh / 2, top + lh * 1.5],
-      subY: top + 2 * lh + subSize * 0.6, subSize,
-      bandTop: top, bandH: blockH,
+/**
+ * Shared title geometry for the DOM preview and the canvas export.
+ * Two-word captions stack as two lines ("SUNSET" / "HEIST"). With a hero panel
+ * the stack is sized to the hero, centred on the hero's centre x and fitted
+ * between the top bar and the hero base — so it can never split across a panel
+ * gap. Without a hero the caption is one line across the cover's middle.
+ * Returns { lines: [{ text, x, y, size }], subtitle: { text, x, y, size } }
+ * with y as baselines, all in canvas pixels.
+ */
+export function titleLayout(ctx, state, W, H) {
+  const layout = layoutByKey(state.layout);
+  const hero = layout.panels.find((p) => p.hero);
+  const words = state.caption.trim().toUpperCase().split(/\s+/).filter(Boolean);
+  const subtitleText = state.subtitle.trim();
+  if (hero) {
+    const hx = hero.x * W;
+    const hw = hero.w * W;
+    const hy = hero.y * H;
+    const hh = hero.h * H;
+    const cx = hx + hw / 2;
+    const lines = words.length >= 2
+      ? [words.slice(0, Math.ceil(words.length / 2)).join(' '), words.slice(Math.ceil(words.length / 2)).join(' ')]
+      : words.slice();
+    // Size the widest line to the hero width, and the whole block to the hero height.
+    let size = hw * 0.32;
+    const fit = () => {
+      ctx.font = `${size}px Anton, sans-serif`;
+      const widest = Math.max(...lines.map((t) => ctx.measureText(t).width));
+      const subSize = size * 0.34;
+      const blockH = lines.length * size * 1.02 + subSize * 1.6;
+      return widest <= hw * 0.98 && blockH <= hh * 0.94;
     };
+    while (size > 12 && !fit()) size *= 0.96;
+    const subSize = size * 0.34;
+    const blockH = lines.length * size * 1.02 + subSize * 1.6;
+    // Anchor the block to the hero base so the hero's eyes stay clear of the title.
+    const blockBottom = hy + hh - H * 0.012;
+    let y = blockBottom - blockH + size * 0.92;
+    const out = lines.map((text) => {
+      const spec = { text, x: cx, y, size };
+      y += size * 1.02;
+      return spec;
+    });
+    // The subtitle sits just above the hero base, inside the hero — never in the
+    // gap below it, where the bottom band would cover it.
+    return { lines: out, subtitle: { text: subtitleText, x: cx, y: blockBottom - subSize * 0.55, size: subSize } };
   }
-  const size = Math.min(W * 0.16, (W * 0.94) / Math.max(4, caption.length * 0.62));
+  // No hero: one line across the middle of the cover.
+  const text = words.join(' ');
+  let size = W * 0.16;
+  ctx.font = `${size}px Anton, sans-serif`;
+  while (size > 12 && ctx.measureText(text).width > W * 0.94) {
+    size *= 0.96;
+    ctx.font = `${size}px Anton, sans-serif`;
+  }
+  const midY = ((TOP_BAR + BOTTOM_BAND) / 2) * H;
+  const subSize = size * 0.34;
   return {
-    lines: [caption], size, cx: W / 2,
-    lineY: [H * 0.44], subY: H * 0.44 + size * 0.62, subSize: size * 0.38,
-    bandTop: H * 0.33, bandH: 0,
+    lines: [{ text, x: W / 2, y: midY + size * 0.3, size }],
+    subtitle: { text: subtitleText, x: W / 2, y: midY + size * 0.3 + size * 0.62, size: subSize },
   };
 }
 
-// --- DOM preview -------------------------------------------------------
-
-// Build (or rebuild) the cover preview inside coverEl. coverEl keeps the
-// cover's aspect ratio; panels are absolutely positioned divs whose
-// background is the photo, positioned by the panel's focus and zoom.
-export function renderCoverDOM(coverEl, state, images) {
-  const W = coverEl.clientWidth || 600;
-  const H = coverEl.clientHeight || 600;
-  const grade = GRADES[state.grade] ?? GRADES.sunset;
-  coverEl.innerHTML = '';
-  coverEl.style.setProperty('--accent', grade.accent);
-  const panels = coverPanels(state, W, H);
-  for (const p of panels) {
-    const img = images[p.slot.photo];
-    const div = document.createElement('div');
-    div.className = 'panel' + (p.hero ? ' hero' : '');
-    div.dataset.panel = p.id;
-    div.style.left = p.px + 'px';
-    div.style.top = p.py + 'px';
-    div.style.width = p.pw + 'px';
-    div.style.height = p.ph + 'px';
-    if (p.slant) {
-      const s = p.slant * p.pw;
-      div.style.clipPath = `polygon(${s}px 0, 100% 0, calc(100% - ${s}px) 100%, 0 100%)`;
-    }
-    if (img) {
-      const r = cropRect(img.naturalWidth, img.naturalHeight, p.pw, p.ph, p.slot.focus, p.slot.zoom);
-      const bgW = (p.pw / r.sw) * img.naturalWidth;
-      const bgH = (p.ph / r.sh) * img.naturalHeight;
-      const bgX = (-r.sx / img.naturalWidth) * bgW;
-      const bgY = (-r.sy / img.naturalHeight) * bgH;
-      div.style.backgroundImage = `url("${p.slot.photo}")`;
-      div.style.backgroundSize = `${bgW}px ${bgH}px`;
-      div.style.backgroundPosition = `${bgX}px ${bgY}px`;
-      div.style.filter = grade.filter;
-    } else {
-      div.classList.add('empty');
-    }
-    const tag = document.createElement('span');
-    tag.className = 'role-tag';
-    // Bottom-row panels sit under the furniture band, so their tag goes
-    // at the top of the panel instead of the bottom.
-    if (p.py + p.ph > H * 0.85) tag.classList.add('top');
-    tag.textContent = p.role;
-    div.appendChild(tag);
-    if (p.hero) {
-      const pop = document.createElement('span');
-      pop.className = 'pop';
-      pop.textContent = '★ HERO';
-      div.appendChild(pop);
-    }
-    coverEl.appendChild(div);
-    // The wash tint sits above the photo but below the tag.
-    const wash = document.createElement('div');
-    wash.className = 'wash';
-    wash.style.cssText = `left:${p.px}px;top:${p.py}px;width:${p.pw}px;height:${p.ph}px;background:${grade.wash}`;
-    coverEl.appendChild(wash);
-  }
-  if (!state.furniture) return;
-
-  // Top bar: five gold stars + the press quote + the volume badge.
-  const top = document.createElement('div');
-  top.className = 'topbar';
-  top.innerHTML =
-    `<span class="stars">★★★★★</span>` +
-    `<span class="press-quote">“${escapeHtml(state.quote || '')}” — ${escapeHtml(state.quoteSource || 'VICE CITY GAZETTE')}</span>` +
-    `<span class="vol-badge">${escapeHtml(state.volume || 'VOL. 1')}</span>`;
-  coverEl.appendChild(top);
-
-  // The title, huge and central, overlapping the panels: a two-word
-  // caption stacks as two lines inside the hero panel (see titleLayout).
-  const tl = titleLayout(state, W, H);
-  const band = document.createElement('div');
-  band.className = 'title-band';
-  if (tl.lines.length === 2) {
-    // Two-line title: the band sits over the hero panel, centred on the
-    // block titleLayout computed, so the title never straddles a gap.
-    const hero = coverPanels(state, W, H).find((p) => p.hero);
-    band.style.left = `${hero.px}px`;
-    band.style.right = 'auto';
-    band.style.width = `${hero.pw}px`;
-    band.style.top = `${tl.bandTop + tl.bandH / 2}px`;
-  } else {
-    band.style.top = `${H * 0.33}px`;
-  }
-  for (const line of tl.lines) {
-    const title = document.createElement('div');
-    title.className = 'cover-title';
-    title.style.fontSize = `${tl.size}px`;
-    title.textContent = line;
-    band.appendChild(title);
-  }
-  const sub = document.createElement('div');
-  sub.className = 'cover-sub';
-  sub.style.fontSize = `${tl.subSize}px`;
-  sub.textContent = state.subtitle || '';
-  band.appendChild(sub);
-  coverEl.appendChild(band);
-
-  // Bottom furniture band: tagline, billing, COMING SOON, barcode, rosette.
-  const foot = document.createElement('div');
-  foot.className = 'foot';
-  foot.innerHTML =
-    `<span class="tagline">${escapeHtml(state.tagline || '')}</span>` +
-    `<span class="billing">${escapeHtml(state.billing || '')}</span>` +
-    `<span class="soon">COMING SOON</span>` +
-    `<span class="barcode" aria-hidden="true"></span>` +
-    `<span class="seal">★ ORIGINAL<br>COVER ART ★</span>`;
-  coverEl.appendChild(foot);
-}
-
-function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-// --- Canvas export -----------------------------------------------------
-
-// Draw the whole cover to a canvas at (W, H) and return the canvas.
-// Uses the same panels, focus and zoom as the DOM preview.
-export function drawCoverToCanvas(state, images, W, H) {
-  const canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d');
-  const grade = GRADES[state.grade] ?? GRADES.sunset;
-
-  // Backdrop: the grade's sky gradient, so gaps read as sunset, not white.
-  const sky = ctx.createLinearGradient(0, 0, W, H);
-  sky.addColorStop(0, grade.sky[0]);
-  sky.addColorStop(1, grade.sky[1]);
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H);
-
-  const panels = coverPanels(state, W, H);
-  for (const p of panels) {
-    const img = images[p.slot.photo];
-    if (!img) continue;
-    ctx.save();
-    if (p.slant) {
-      const s = p.slant * p.pw;
-      ctx.beginPath();
-      ctx.moveTo(p.px + s, p.py);
-      ctx.lineTo(p.px + p.pw, p.py);
-      ctx.lineTo(p.px + p.pw - s, p.py + p.ph);
-      ctx.lineTo(p.px, p.py + p.ph);
-      ctx.closePath();
-      ctx.clip();
-    } else {
-      ctx.beginPath();
-      ctx.rect(p.px, p.py, p.pw, p.ph);
-      ctx.clip();
-    }
-    if (p.hero) {
-      // Pop-out hero: a white frame and a soft shadow around the panel.
-      ctx.shadowColor = 'rgba(0,0,0,0.55)';
-      ctx.shadowBlur = W * 0.03;
-      ctx.shadowOffsetY = W * 0.012;
-    }
-    const r = cropRect(img.naturalWidth, img.naturalHeight, p.pw, p.ph, p.slot.focus, p.slot.zoom);
-    ctx.filter = grade.filter;
-    ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, p.px, p.py, p.pw, p.ph);
-    ctx.filter = 'none';
-    ctx.fillStyle = grade.wash;
-    ctx.fillRect(p.px, p.py, p.pw, p.ph);
-    // Panel frame.
-    ctx.strokeStyle = p.hero ? '#ffffff' : 'rgba(255,255,255,0.75)';
-    ctx.lineWidth = p.hero ? Math.max(3, W * 0.006) : Math.max(1.5, W * 0.0025);
-    ctx.strokeRect(p.px, p.py, p.pw, p.ph);
-    ctx.restore();
-
-    // Role tag: bottom-left of the panel — except bottom-row panels, whose
-    // tag goes at the top so the furniture band never covers it.
-    const tagH = Math.max(18, H * 0.028);
-    const tagPad = tagH * 0.45;
-    ctx.font = `700 ${Math.round(tagH * 0.62)}px Anton, sans-serif`;
-    const tw = ctx.measureText(p.role).width + tagPad * 2;
-    const tx = p.px + Math.max(6, W * 0.012);
-    const ty = p.py + p.ph > H * 0.85
-      ? p.py + Math.max(6, H * 0.012)
-      : p.py + p.ph - tagH - Math.max(6, H * 0.012);
-    ctx.fillStyle = grade.accent;
-    ctx.fillRect(tx, ty, tw, tagH);
-    ctx.fillStyle = '#ffffff';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(p.role, tx + tagPad, ty + tagH / 2 + 1);
-  }
-
-  if (!state.furniture) return canvas;
-
-  // Top bar: five gold stars + the press quote + the volume badge.
-  const barH = H * 0.075;
-  ctx.fillStyle = 'rgba(10, 6, 24, 0.66)';
-  ctx.fillRect(0, 0, W, barH);
-  const starSize = Math.max(14, barH * 0.52);
-  ctx.font = `${Math.round(starSize)}px Arial, sans-serif`;
-  ctx.fillStyle = '#ffd166';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('★★★★★', W * 0.03, barH / 2);
-  const qSize = Math.max(13, H * 0.017);
-  ctx.font = `italic 700 ${Math.round(qSize)}px Georgia, serif`;
-  ctx.fillStyle = '#ffffff';
-  const quote = `“${state.quote || ''}” — ${state.quoteSource || 'VICE CITY GAZETTE'}`;
-  ctx.fillText(quote, W * 0.03 + starSize * 5.4, barH / 2, W * 0.68);
-  ctx.font = `700 ${Math.round(qSize)}px Anton, sans-serif`;
-  ctx.fillStyle = grade.accent;
-  ctx.textAlign = 'right';
-  ctx.fillText(state.volume || 'VOL. 1', W * 0.97, barH / 2);
-  ctx.textAlign = 'left';
-
-  // The title, huge and central, overlapping the panels: striped chrome
-  // with a heavy outline and a 3D drop, so it reads at thumbnail size.
-  // A two-word caption stacks as two lines inside the hero panel.
-  const tl = titleLayout(state, W, H);
-  const titleSize = tl.size;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `${Math.round(titleSize)}px Anton, sans-serif`;
-  for (let i = 0; i < tl.lines.length; i++) {
-    const line = tl.lines[i];
-    const cy = tl.lineY[i];
-    // 3D depth: dark copies stacked below.
-    ctx.fillStyle = 'rgba(20, 4, 30, 0.9)';
-    for (let d = 9; d >= 3; d -= 3) {
-      ctx.fillText(line, tl.cx, cy + d);
-    }
-    // Striped chrome fill: hard-stop gradient bands (gold / pink / gold).
-    const stripe = ctx.createLinearGradient(0, cy - titleSize / 2, 0, cy + titleSize / 2);
-    stripe.addColorStop(0, '#fff8d6');
-    stripe.addColorStop(0.42, '#ffd166');
-    stripe.addColorStop(0.5, '#ff5e3a');
-    stripe.addColorStop(0.58, '#ffd166');
-    stripe.addColorStop(1, '#fff3c4');
-    ctx.fillStyle = stripe;
-    ctx.fillText(line, tl.cx, cy);
-    ctx.lineWidth = Math.max(2, titleSize * 0.035);
-    ctx.strokeStyle = 'rgba(20,4,30,0.9)';
-    ctx.strokeText(line, tl.cx, cy);
-  }
-
-  if (state.subtitle) {
-    ctx.font = `${Math.round(tl.subSize)}px Yellowtail, cursive`;
-    ctx.fillStyle = grade.ink;
-    ctx.fillText(state.subtitle, tl.cx, tl.subY);
-  }
-
-  // Bottom furniture band: tagline, billing, COMING SOON, barcode, rosette.
-  const footTop = H * 0.86;
-  ctx.fillStyle = 'rgba(10, 6, 24, 0.72)';
-  ctx.fillRect(0, footTop, W, H - footTop);
-  ctx.textAlign = 'left';
-  const tSize = Math.max(13, H * 0.018);
-  ctx.font = `700 ${Math.round(tSize)}px Anton, sans-serif`;
-  ctx.fillStyle = grade.ink;
-  ctx.fillText(state.tagline || '', W * 0.03, footTop + tSize * 1.1);
-  ctx.font = `${Math.round(tSize * 0.62)}px Arial, sans-serif`;
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.fillText(state.billing || '', W * 0.03, footTop + tSize * 2.3, W * 0.58);
-
-  // COMING SOON, in the bottom band (never on a photo).
-  const soonSize = Math.max(13, H * 0.022);
-  ctx.font = `700 ${Math.round(soonSize)}px Anton, sans-serif`;
-  ctx.fillStyle = '#ff2e3e';
-  ctx.fillText('COMING SOON', W * 0.03, H - tSize * 0.7);
-
-  // Barcode, bottom-right of the band.
-  const sealR = H * 0.048;
-  const sx = W - sealR - W * 0.03;
-  const sy = H - sealR - H * 0.028;
-  const barX = sx - sealR * 2.6;
-  const barW = sealR * 2.0;
-  const codeH = sealR * 0.95;
-  const barY = sy + sealR - codeH;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(barX - 4, barY - 4, barW + 8, codeH + 8);
-  let bx = barX;
-  let seed = 7;
-  ctx.fillStyle = '#111111';
-  while (bx < barX + barW) {
-    seed = (seed * 37 + 11) % 97;
-    const bw = 1 + (seed % 4);
-    if (seed % 3) ctx.fillRect(bx, barY, bw, codeH);
-    bx += bw + 1 + (seed % 3);
-  }
-
-  // Rosette seal with words: a scalloped gold rosette, not a plain circle.
+/** Draws one five-pointed star centred at (x, y) with radius r. */
+function drawStar(ctx, x, y, r, colour) {
   ctx.save();
-  ctx.translate(sx, sy);
+  ctx.fillStyle = colour;
   ctx.beginPath();
-  const points = 14;
-  for (let i = 0; i <= points * 2; i++) {
-    const a = (i / (points * 2)) * Math.PI * 2;
-    const rr = i % 2 === 0 ? sealR : sealR * 0.86;
-    const x = Math.cos(a) * rr;
-    const y = Math.sin(a) * rr;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+  for (let i = 0; i < 10; i++) {
+    const rad = i % 2 === 0 ? r : r * 0.45;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const px = x + Math.cos(a) * rad;
+    const py = y + Math.sin(a) * rad;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
   }
   ctx.closePath();
-  ctx.fillStyle = '#d4af37';
   ctx.fill();
-  ctx.lineWidth = Math.max(2, sealR * 0.07);
-  ctx.strokeStyle = '#8a6d1b';
-  ctx.stroke();
-  ctx.fillStyle = '#3a2a00';
-  ctx.font = `700 ${Math.round(sealR * 0.26)}px Anton, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.fillText('ORIGINAL', 0, -sealR * 0.1);
-  ctx.fillText('COVER ART', 0, sealR * 0.26);
   ctx.restore();
-
-  return canvas;
 }
 
-// Download a canvas as a PNG file.
-export function downloadCanvas(canvas, filename) {
-  canvas.toBlob((blob) => {
+/** Draws the gold rosette seal with its words, centred at (x, y). */
+function drawSeal(ctx, x, y, r, caption) {
+  ctx.save();
+  ctx.translate(x, y);
+  // Scalloped gold edge.
+  ctx.fillStyle = '#d4a017';
+  ctx.beginPath();
+  const points = 16;
+  for (let i = 0; i < points * 2; i++) {
+    const rad = i % 2 === 0 ? r : r * 0.86;
+    const a = (i * Math.PI) / points;
+    const px = Math.cos(a) * rad;
+    const py = Math.sin(a) * rad;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#f7d774';
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.82, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#8a6410';
+  ctx.lineWidth = Math.max(1, r * 0.04);
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.82, 0, Math.PI * 2);
+  ctx.stroke();
+  drawStar(ctx, 0, -r * 0.34, r * 0.22, '#8a6410');
+  ctx.fillStyle = '#5c3f05';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `${r * 0.24}px Anton, sans-serif`;
+  ctx.fillText('ORIGINAL', 0, r * 0.14);
+  ctx.fillText('COVER ART', 0, r * 0.42);
+  ctx.restore();
+}
+
+/** Deterministic barcode bars from a seed string. */
+function drawBarcode(ctx, x, y, w, h, seed) {
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x, y, w, h);
+  let s = 0;
+  for (const ch of seed) s = (s * 31 + ch.charCodeAt(0)) >>> 0;
+  ctx.fillStyle = '#111111';
+  let bx = x + w * 0.06;
+  while (bx < x + w * 0.94) {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    const bw = 1 + (s % 4);
+    if (s % 3 !== 0) ctx.fillRect(bx, y + h * 0.08, bw, h * 0.72);
+    bx += bw + 2;
+  }
+  ctx.restore();
+}
+
+/**
+ * Renders the whole cover into `ctx` at W x H. `state` holds layout, grade,
+ * caption, subtitle, quote, the loaded images keyed by photo, the per-photo
+ * focus points and the per-photo role tags.
+ */
+export function renderCover(ctx, state, W, H) {
+  const layout = layoutByKey(state.layout);
+  const grade = gradeByKey(state.grade);
+  ctx.save();
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#160a18';
+  ctx.fillRect(0, 0, W, H);
+
+  // Panels: each photo drawn cover-fit around its focus point.
+  for (const panel of layout.panels) {
+    const px = panel.x * W;
+    const py = panel.y * H;
+    const pw = panel.w * W;
+    const ph = panel.h * H;
+    const img = state.images[panel.photo];
+    ctx.save();
+    if (panel.slant) {
+      const s = panel.slant * W;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(px + pw, py);
+      ctx.lineTo(px + pw - s, py + ph);
+      ctx.lineTo(px - s, py + ph);
+      ctx.closePath();
+      ctx.clip();
+    }
+    if (img) {
+      const focus = state.focus[panel.photo];
+      const [sx, sy, sw, sh] = coverRect(img, pw, ph, focus);
+      ctx.filter = grade.filter;
+      ctx.drawImage(img, sx, sy, sw, sh, px, py, pw, ph);
+      ctx.filter = 'none';
+    } else {
+      ctx.fillStyle = '#2a1430';
+      ctx.fillRect(px, py, pw, ph);
+    }
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = Math.max(1, W * 0.001);
+    ctx.strokeRect(px + 0.5, py + 0.5, pw - 1, ph - 1);
+  }
+
+  // One cohesive grade cast over the whole cover, plus a soft vignette.
+  const cast = ctx.createLinearGradient(0, 0, 0, H);
+  cast.addColorStop(0, grade.cast[0]);
+  cast.addColorStop(1, grade.cast[1]);
+  ctx.fillStyle = cast;
+  ctx.fillRect(0, 0, W, H);
+  const vig = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.28)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+
+  // Role tags on every panel.
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const tagH = Math.max(16, H * 0.032);
+  const tagSize = Math.max(11, H * 0.018);
+  const hasHero = layout.panels.some((p) => p.hero);
+  for (const panel of layout.panels) {
+    const px = panel.x * W;
+    const py = panel.y * H;
+    const ph = panel.h * H;
+    ctx.font = `${tagSize}px Anton, sans-serif`;
+    const label = state.tags[panel.photo] || panel.tag;
+    const tw = ctx.measureText(label).width + tagH * 0.9;
+    // Without a hero the title sits across the cover's middle, so a bottom-row
+    // panel's tag would hide behind it — those tags go on the panel's bottom.
+    const ty = !hasHero && panel.y > 0.4 ? py + ph - tagH - 6 : py + 6;
+    ctx.fillStyle = '#22d3ee';
+    ctx.fillRect(px + 6, ty, tw, tagH);
+    ctx.fillStyle = '#0b1520';
+    ctx.fillText(label, px + 6 + tagH * 0.45, ty + tagH / 2 + 1);
+  }
+
+  // Title: striped chrome letters with a dark outline and a drop shadow.
+  const title = titleLayout(ctx, state, W, H);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  for (const line of title.lines) {
+    ctx.font = `${line.size}px Anton, sans-serif`;
+    const grad = ctx.createLinearGradient(0, line.y - line.size, 0, line.y);
+    grad.addColorStop(0, '#ffd23d');
+    grad.addColorStop(0.5, '#ff9a3d');
+    grad.addColorStop(1, '#ff5e8a');
+    ctx.shadowBlur = line.size * 0.08;
+    ctx.shadowOffsetY = line.size * 0.03;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1a0b1e';
+    ctx.lineWidth = Math.max(2, line.size * 0.07);
+    ctx.strokeText(line.text, line.x, line.y);
+    ctx.fillStyle = grad;
+    ctx.fillText(line.text, line.x, line.y);
+  }
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  if (title.subtitle.text) {
+    ctx.font = `${title.subtitle.size}px Yellowtail, cursive`;
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = title.subtitle.size * 0.15;
+    ctx.shadowOffsetY = title.subtitle.size * 0.05;
+    ctx.fillText(title.subtitle.text, title.subtitle.x, title.subtitle.y);
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+  }
+
+  // Top bar: five stars, the press quote, VOL. 1.
+  const barH = TOP_BAR * H;
+  ctx.fillStyle = 'rgba(16,6,20,0.88)';
+  ctx.fillRect(0, 0, W, barH);
+  const starR = barH * 0.26;
+  let sx = W * 0.02 + starR;
+  for (let i = 0; i < 5; i++) {
+    drawStar(ctx, sx, barH / 2, starR, '#f7c948');
+    sx += starR * 2.4;
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  const quoteX = W * 0.02 + starR * 12.6;
+  let quote = `“${state.quote}” — VICE CITY GAZETTE`;
+  let qSize = barH * 0.42;
+  ctx.font = `${qSize}px Anton, sans-serif`;
+  const volW = ctx.measureText('VOL. 1').width;
+  const quoteMax = W * 0.985 - volW - W * 0.03 - quoteX;
+  while (qSize > 8 && ctx.measureText(quote).width > quoteMax) {
+    qSize *= 0.95;
+    ctx.font = `${qSize}px Anton, sans-serif`;
+  }
+  if (ctx.measureText(quote).width > quoteMax) quote = `“${state.quote}”`;
+  ctx.fillText(quote, quoteX, barH / 2 + 1);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#f7c948';
+  ctx.font = `${barH * 0.42}px Anton, sans-serif`;
+  ctx.fillText('VOL. 1', W * 0.985, barH / 2 + 1);
+
+  // Bottom furniture band: tagline, billing, COMING SOON, barcode, seal.
+  const bandY = BOTTOM_BAND * H;
+  const bandH = H - bandY;
+  ctx.fillStyle = 'rgba(16,6,20,0.92)';
+  ctx.fillRect(0, bandY, W, bandH);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  try { ctx.letterSpacing = `${Math.max(2, W * 0.002)}px`; } catch (e) { /* older canvas */ }
+  const textMax = W * 0.72;
+  ctx.fillStyle = '#ffffff';
+  let bandTagSize = bandH * 0.26;
+  ctx.font = `${bandTagSize}px Anton, sans-serif`;
+  while (bandTagSize > 8 && ctx.measureText('EVERY SUNSET HAS A PRICE').width > textMax) {
+    bandTagSize *= 0.95;
+    ctx.font = `${bandTagSize}px Anton, sans-serif`;
+  }
+  ctx.fillText('EVERY SUNSET HAS A PRICE', W * 0.02, bandY + bandH * 0.34);
+  try { ctx.letterSpacing = '0px'; } catch (e) { /* older canvas */ }
+  ctx.fillStyle = '#c9b8cc';
+  let billSize = bandH * 0.17;
+  const billing = 'VICE FRAME PICTURES  •  A SUNSET HEIST  •  STARRING YOU — SHOT ON YOUR OWN CAMERA';
+  ctx.font = `${billSize}px Anton, sans-serif`;
+  while (billSize > 8 && ctx.measureText(billing).width > textMax) {
+    billSize *= 0.95;
+    ctx.font = `${billSize}px Anton, sans-serif`;
+  }
+  ctx.fillText(billing, W * 0.02, bandY + bandH * 0.62);
+  ctx.fillStyle = '#ff4d6d';
+  ctx.font = `${bandH * 0.22}px Anton, sans-serif`;
+  ctx.fillText('COMING SOON', W * 0.02, bandY + bandH * 0.90);
+  const sealR = bandH * 0.44;
+  drawSeal(ctx, W * 0.87, bandY + bandH / 2, sealR, 'ORIGINAL COVER ART');
+  drawBarcode(ctx, W * 0.74, bandY + bandH * 0.22, W * 0.05, bandH * 0.56, state.caption);
+  ctx.restore();
+}
+
+/** Renders the cover at W x H and downloads it as a PNG file. */
+export function exportPNG(state, w, h) {
+  const cv = document.createElement('canvas');
+  cv.width = w;
+  cv.height = h;
+  renderCover(cv.getContext('2d'), state, w, h);
+  cv.toBlob((blob) => {
     if (!blob) return;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = filename;
+    a.download = `vice-frame-${w}x${h}.png`;
     a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }, 'image/png');
 }

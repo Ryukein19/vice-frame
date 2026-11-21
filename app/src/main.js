@@ -1,374 +1,230 @@
-// Vice Frame — the app.
-// A multi-panel GTA-style cover studio. The state holds the layout, the
-// grade, the poster words and one slot per panel (photo, focus, zoom, role).
-// The cover preview is a DOM render (render.js); the PNG export draws the
-// same cover to a canvas. Photos are read on the user's own machine and
-// never leave it.
+// Vice Frame editor: loads the samples, renders the live cover preview (the same
+// renderCover the PNG export uses), and wires the layout, grade, caption, photo
+// and per-panel focus controls.
+import { renderCover, exportPNG } from './render.js';
+import { GRADES } from './grades.js';
+import { LAYOUTS } from './layouts.js';
+import { faceAwareCrop } from './crop.js';
+import { SAMPLES } from './samples.js';
+import { runShot } from './shots.js';
 
-import { LAYOUTS, LAYOUT_ORDER } from './layouts.js';
-import { GRADES, GRADE_ORDER } from './grades.js';
-import { defaultFocus, faceAwareCrop, nudgeFocus } from './crop.js';
-import { SIZES, renderCoverDOM, drawCoverToCanvas, downloadCanvas } from './render.js';
-import { shotParams, applyShot, markReady } from './shots.js';
+const state = {
+  layout: 'mosaic',
+  grade: 'sunset',
+  caption: 'SUNSET HEIST',
+  subtitle: 'a vice city story',
+  quote: 'THE HOTTEST RIDE OF THE YEAR',
+  images: {},
+  focus: {},
+  tags: {},
+};
+let selectedPhoto = 'face';
 
-export const SAMPLES = [
-  { file: 'face.jpg', name: 'The Fixer', role: 'THE FIXER' },
-  { file: 'courier.jpg', name: 'Courier', role: 'THE DRIVER' },
-  { file: 'neon.jpg', name: 'Neon Street', role: 'THE HIDEOUT' },
-  { file: 'getaway.jpg', name: 'Getaway', role: 'THE GETAWAY' },
-  // The pier photo's face sits upper-left, but the energy heuristic
-  // scores the turquoise sea higher, so this sample ships with its focus
-  // pinned on the fisherman's face (and a tighter zoom) instead of the
-  // heuristic's guess — the face stays centred and fully in frame. The
-  // focus sits a touch below the face's centre so that, in the wide
-  // cover, the smile clears the bottom furniture band.
-  { file: 'pier.jpg', name: 'Pier', role: 'THE INSIDER', focus: { fx: 0.36, fy: 0.25 }, zoom: 1.35 },
-  { file: 'boulevard.jpg', name: 'Boulevard', role: 'OCEAN DRIVE' },
-];
+const canvas = document.getElementById('cover');
+const ctx = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
 
-export const ROLES = ['THE INSIDER', 'THE BOSS', 'THE DRIVER', 'THE LOOKOUT', 'THE FIXER', 'THE CLEANER', 'THE WHEELMAN'];
-
-export function freshState() {
-  return {
-    layout: 'mosaic',
-    grade: 'sunset',
-    caption: 'SUNSET HEIST',
-    subtitle: 'a vice city story',
-    quote: 'THE HOTTEST RIDE OF THE YEAR',
-    quoteSource: 'VICE CITY GAZETTE',
-    volume: 'VOL. 1',
-    tagline: 'EVERY SUNSET HAS A PRICE',
-    billing: 'VICE FRAME PICTURES  •  A SUNSET HEIST  •  STARRING YOU — SHOT ON YOUR OWN CAMERA  •  COMING SOON',
-    furniture: true,
-    selected: 0,
-    panels: SAMPLES.map((s) => ({
-      photo: `samples/${s.file}`,
-      // A sample with a pinned focus keeps it; the rest get the
-      // face-aware crop in ensureAll (focusSet marks the pinned ones).
-      focus: s.focus ?? defaultFocus(),
-      focusSet: Boolean(s.focus),
-      zoom: s.zoom ?? 1,
-      role: s.role,
-    })),
-  };
+function setStatus(text) {
+  statusEl.textContent = text;
 }
 
-export const state = freshState();
+function render() {
+  renderCover(ctx, state, canvas.width, canvas.height);
+}
 
-// Loaded <img> elements, keyed by photo path.
-const images = {};
-let coverEl = null;
-let sizeKey = 'square';
-
-function loadImage(url) {
+/** Loads one image from a URL. */
+function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('cannot load ' + url));
-    img.src = url;
+    img.onerror = () => reject(new Error(`could not load ${src}`));
+    img.src = src;
   });
 }
 
-async function ensureImage(path) {
-  if (images[path]) return images[path];
-  const img = await loadImage(path);
-  images[path] = img;
-  return img;
+/** Loads all five sample photos and measures each one's focus point. */
+async function loadSamples() {
+  for (const sample of SAMPLES) {
+    const img = await loadImage(`samples/${sample.file}`);
+    state.images[sample.key] = img;
+    state.focus[sample.key] = faceAwareCrop(img, sample.focus);
+    state.tags[sample.key] = sample.tag;
+  }
+  setStatus('Sample photos loaded. Click a panel to select it, then crop it.');
 }
 
-async function ensureAll() {
-  // Load every panel photo, then face-aware-crop each one by default, so
-  // every panel already centres its subject before the user touches it.
-  const jobs = state.panels
-    .map((p) => p.photo)
-    .filter(Boolean)
-    .map((path) => ensureImage(path).catch(() => null));
-  await Promise.all(jobs);
-  for (const p of state.panels) {
-    const img = images[p.photo];
-    if (img && !p.focusSet) {
-      p.focus = faceAwareCrop(img);
-      p.focusSet = true;
-    }
+/** Builds the layout and grade picker buttons. */
+function buildPickers() {
+  const layoutBox = document.getElementById('layouts');
+  for (const layout of LAYOUTS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = layout.name;
+    b.dataset.key = layout.key;
+    b.addEventListener('click', () => {
+      state.layout = layout.key;
+      layoutBox.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
+      render();
+    });
+    if (layout.key === state.layout) b.classList.add('active');
+    layoutBox.appendChild(b);
+  }
+  const gradeBox = document.getElementById('grades');
+  for (const grade of GRADES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = grade.name;
+    b.dataset.key = grade.key;
+    b.addEventListener('click', () => {
+      state.grade = grade.key;
+      gradeBox.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
+      render();
+    });
+    if (grade.key === state.grade) b.classList.add('active');
+    gradeBox.appendChild(b);
   }
 }
 
-function redraw() {
-  if (!coverEl) return;
-  renderCoverDOM(coverEl, state, images);
-  syncEditor();
-  document.body.dataset.layout = state.layout;
-  document.body.dataset.grade = state.grade;
+/** Builds the sample-photo thumbnails. Clicking one loads it into the selected panel. */
+function buildThumbs() {
+  const box = document.getElementById('samples');
+  for (const sample of SAMPLES) {
+    const img = document.createElement('img');
+    img.src = `samples/${sample.file}`;
+    img.alt = sample.tag;
+    img.title = `${sample.tag} — click to put this photo in the selected panel`;
+    img.addEventListener('click', async () => {
+      const loaded = await loadImage(`samples/${sample.file}`);
+      state.images[sample.key] = loaded;
+      state.focus[sample.key] = faceAwareCrop(loaded, sample.focus);
+      state.tags[sample.key] = sample.tag;
+      render();
+      setStatus(`${sample.tag} loaded into the selected panel.`);
+    });
+    box.appendChild(img);
+  }
 }
 
-// --- editor panel -------------------------------------------------------
-
-function syncEditor() {
-  const sel = state.panels[state.selected] ?? state.panels[0];
-  const set = (id, v) => {
-    const el = document.getElementById(id);
-    if (el) el.value = v;
-  };
-  set('ed-zoom', sel.zoom);
-  set('ed-role', sel.role);
-  const zoomOut = document.getElementById('ed-zoom-out');
-  if (zoomOut) zoomOut.textContent = `${sel.zoom.toFixed(1)}×`;
-  const cap = document.getElementById('ed-caption');
-  if (cap) cap.value = state.caption;
-  const sub = document.getElementById('ed-subtitle');
-  if (sub) sub.value = state.subtitle;
-  const quo = document.getElementById('ed-quote');
-  if (quo) quo.value = state.quote;
-  const qsrc = document.getElementById('ed-quote-source');
-  if (qsrc) qsrc.value = state.quoteSource;
-  const vol = document.getElementById('ed-volume');
-  if (vol) vol.value = state.volume;
-  const tag = document.getElementById('ed-tagline');
-  if (tag) tag.value = state.tagline;
-  const bil = document.getElementById('ed-billing');
-  if (bil) bil.value = state.billing;
-  const furn = document.getElementById('ed-furniture');
-  if (furn) furn.checked = state.furniture;
-  document.querySelectorAll('.panel-slot').forEach((el, i) => {
-    el.classList.toggle('selected', i === state.selected);
-  });
+/** Finds which layout panel a click on the preview canvas landed in. */
+function panelAt(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const fx = (clientX - rect.left) / rect.width;
+  const fy = (clientY - rect.top) / rect.height;
+  const layout = LAYOUTS.find((l) => l.key === state.layout);
+  return layout.panels.find((p) => fx >= p.x && fx <= p.x + p.w && fy >= p.y && fy <= p.y + p.h) || null;
 }
 
-function buildPickers() {
-  const layoutBox = document.getElementById('layout-picker');
-  LAYOUT_ORDER.forEach((id) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'pick layout-pick';
-    b.dataset.layout = id;
-    b.textContent = LAYOUTS[id].name;
-    b.title = LAYOUTS[id].blurb;
-    b.addEventListener('click', () => {
-      state.layout = id;
-      redraw();
-    });
-    layoutBox.appendChild(b);
+function wireEditor() {
+  const captionInput = document.getElementById('caption');
+  const subtitleInput = document.getElementById('subtitle');
+  captionInput.addEventListener('input', () => {
+    state.caption = captionInput.value.toUpperCase() || 'SUNSET HEIST';
+    render();
   });
-  const gradeBox = document.getElementById('grade-picker');
-  GRADE_ORDER.forEach((id) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'pick grade-pick';
-    b.dataset.grade = id;
-    b.textContent = GRADES[id].name;
-    b.style.setProperty('--swatch', GRADES[id].accent);
-    b.addEventListener('click', () => {
-      state.grade = id;
-      redraw();
-    });
-    gradeBox.appendChild(b);
+  subtitleInput.addEventListener('input', () => {
+    state.subtitle = subtitleInput.value || 'a vice city story';
+    render();
   });
-  const slotBox = document.getElementById('panel-slots');
-  state.panels.forEach((p, i) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'pick panel-slot';
-    b.dataset.slot = i;
-    b.textContent = `Panel ${i + 1} — ${p.role}`;
-    b.addEventListener('click', () => {
-      state.selected = i;
-      redraw();
-    });
-    slotBox.appendChild(b);
-  });
-  const sampleBox = document.getElementById('sample-picker');
-  SAMPLES.forEach((s) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'pick sample-pick';
-    b.textContent = s.name;
-    b.addEventListener('click', async () => {
-      const slot = state.panels[state.selected];
-      slot.photo = `samples/${s.file}`;
-      slot.role = s.role;
-      if (s.focus) {
-        slot.focus = s.focus;
-        slot.focusSet = true;
-        slot.zoom = s.zoom ?? 1;
-      }
-      await ensureImage(slot.photo).catch(() => null);
-      redraw();
-    });
-    sampleBox.appendChild(b);
-  });
-}
 
-function buildEditor() {
-  const bind = (id, fn) => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', (e) => fn(e.target.value));
-  };
-  bind('ed-caption', (v) => { state.caption = v.toUpperCase(); redraw(); });
-  bind('ed-subtitle', (v) => { state.subtitle = v; redraw(); });
-  bind('ed-quote', (v) => { state.quote = v; redraw(); });
-  bind('ed-quote-source', (v) => { state.quoteSource = v; redraw(); });
-  bind('ed-volume', (v) => { state.volume = v; redraw(); });
-  bind('ed-tagline', (v) => { state.tagline = v; redraw(); });
-  bind('ed-billing', (v) => { state.billing = v; redraw(); });
-  bind('ed-role', (v) => {
-    const slot = state.panels[state.selected];
-    slot.role = v.toUpperCase();
-    const btn = document.querySelector(`.panel-slot[data-slot="${state.selected}"]`);
-    if (btn) btn.textContent = `Panel ${state.selected + 1} — ${slot.role}`;
-    redraw();
-  });
-  bind('ed-zoom', (v) => {
-    state.panels[state.selected].zoom = Number(v);
-    redraw();
-  });
-  const furn = document.getElementById('ed-furniture');
-  if (furn) furn.addEventListener('change', (e) => { state.furniture = e.target.checked; redraw(); });
+  const zoomInput = document.getElementById('zoom');
+  const roleInput = document.getElementById('role');
+  const selectedLabel = document.getElementById('selectedLabel');
 
-  const focusBtn = document.getElementById('ed-autofocus');
-  if (focusBtn) focusBtn.addEventListener('click', async () => {
-    const slot = state.panels[state.selected];
-    const img = images[slot.photo];
+  canvas.addEventListener('click', (ev) => {
+    const panel = panelAt(ev.clientX, ev.clientY);
+    if (!panel) return;
+    selectedPhoto = panel.photo;
+    const focus = state.focus[selectedPhoto];
+    zoomInput.value = focus ? focus.zoom : 1;
+    roleInput.value = state.tags[selectedPhoto] || panel.tag;
+    selectedLabel.textContent = `Selected: ${state.tags[selectedPhoto] || panel.tag} (${panel.photo}).`;
+  });
+
+  zoomInput.addEventListener('input', () => {
+    const focus = state.focus[selectedPhoto];
+    if (focus) focus.zoom = Number(zoomInput.value);
+    render();
+  });
+
+  document.getElementById('autofocus').addEventListener('click', () => {
+    const img = state.images[selectedPhoto];
     if (!img) return;
-    slot.focus = faceAwareCrop(img);
-    slot.focusSet = true;
-    redraw();
+    const sample = SAMPLES.find((s) => s.key === selectedPhoto);
+    state.focus[selectedPhoto] = faceAwareCrop(img, sample ? sample.focus : null);
+    zoomInput.value = state.focus[selectedPhoto].zoom;
+    render();
+    setStatus(`Auto-focus set for ${state.tags[selectedPhoto]}.`);
   });
 
-  // Arrow keys nudge the selected panel's focus; = / - zoom.
-  document.addEventListener('keydown', (e) => {
-    if (e.target.matches('input, textarea, select')) return;
-    const slot = state.panels[state.selected];
-    const step = 0.04;
-    if (e.key === 'ArrowLeft') slot.focus = nudgeFocus(slot.focus, -step, 0);
-    else if (e.key === 'ArrowRight') slot.focus = nudgeFocus(slot.focus, step, 0);
-    else if (e.key === 'ArrowUp') slot.focus = nudgeFocus(slot.focus, 0, -step);
-    else if (e.key === 'ArrowDown') slot.focus = nudgeFocus(slot.focus, 0, step);
-    else if (e.key === '=' || e.key === '+') slot.zoom = Math.min(3, slot.zoom + 0.1);
-    else if (e.key === '-') slot.zoom = Math.max(1, slot.zoom - 0.1);
-    else return;
-    e.preventDefault();
-    redraw();
+  roleInput.addEventListener('input', () => {
+    state.tags[selectedPhoto] = roleInput.value.toUpperCase();
+    render();
   });
 
-  // Click a panel in the preview to select it; drag on it to move focus.
-  coverEl.addEventListener('click', (e) => {
-    const panel = e.target.closest('.panel');
-    if (!panel) return;
-    const idx = Number(panel.dataset.panel.replace('p', ''));
-    if (!Number.isNaN(idx)) {
-      state.selected = idx;
-      redraw();
-    }
-  });
-  let dragging = null;
-  coverEl.addEventListener('pointerdown', (e) => {
-    const panel = e.target.closest('.panel');
-    if (!panel) return;
-    dragging = { idx: Number(panel.dataset.panel.replace('p', '')), x: e.clientX, y: e.clientY };
-    coverEl.setPointerCapture(e.pointerId);
-  });
-  coverEl.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const slot = state.panels[dragging.idx];
-    const rect = coverEl.getBoundingClientRect();
-    slot.focus = nudgeFocus(slot.focus, (e.clientX - dragging.x) / rect.width, (e.clientY - dragging.y) / rect.height);
-    dragging.x = e.clientX;
-    dragging.y = e.clientY;
-    redraw();
-  });
-  coverEl.addEventListener('pointerup', () => { dragging = null; });
-
-  // Size picker: square / portrait / wide changes the cover's aspect.
-  document.querySelectorAll('[data-size]').forEach((b) => {
-    b.addEventListener('click', () => {
-      sizeKey = b.dataset.size;
-      const s = SIZES[sizeKey];
-      coverEl.style.aspectRatio = `${s.w} / ${s.h}`;
-      redraw();
-    });
-  });
-
-  // Export buttons.
-  document.querySelectorAll('[data-export]').forEach((b) => {
-    b.addEventListener('click', () => exportSize(b.dataset.export));
-  });
-  const all = document.getElementById('export-all');
-  if (all) all.addEventListener('click', () => {
-    for (const key of Object.keys(SIZES)) exportSize(key);
-  });
-}
-
-async function exportSize(key) {
-  const s = SIZES[key];
-  await ensureAll();
-  const canvas = drawCoverToCanvas(state, images, s.w, s.h);
-  downloadCanvas(canvas, `vice-frame-${s.w}x${s.h}.png`);
-  const status = document.getElementById('status');
-  if (status) status.textContent = `Saved vice-frame-${s.w}x${s.h}.png`;
-}
-
-// --- photo upload -------------------------------------------------------
-
-function buildUpload() {
-  const input = document.getElementById('photo');
-  if (!input) return;
-  input.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
+  document.getElementById('upload').addEventListener('change', async (ev) => {
+    const file = ev.target.files[0];
     if (!file) return;
     const url = URL.createObjectURL(file);
-    const slot = state.panels[state.selected];
-    slot.photo = url;
-    slot.focus = defaultFocus();
-    try {
-      const img = await loadImage(url);
-      images[url] = img;
-      slot.focus = faceAwareCrop(img);
-      slot.focusSet = true;
-    } catch {
-      // Keep the photo; the panel just stays empty until it loads.
-    }
-    redraw();
+    const img = await loadImage(url);
+    state.images[selectedPhoto] = img;
+    state.focus[selectedPhoto] = faceAwareCrop(img, null);
+    render();
+    setStatus(`Your photo is in the ${state.tags[selectedPhoto]} panel.`);
   });
-  const loadBtn = document.getElementById('load-samples');
-  if (loadBtn) loadBtn.addEventListener('click', async () => {
-    state.panels.forEach((p, i) => {
-      p.photo = `samples/${SAMPLES[i].file}`;
-      p.role = SAMPLES[i].role;
-      p.focus = SAMPLES[i].focus ?? defaultFocus();
-      p.focusSet = Boolean(SAMPLES[i].focus);
-      p.zoom = SAMPLES[i].zoom ?? 1;
+
+  document.getElementById('loadSamples').addEventListener('click', async () => {
+    await loadSamples();
+    render();
+  });
+
+  document.querySelectorAll('[data-export]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const [w, h] = b.dataset.export.split('x').map(Number);
+      exportPNG(state, w, h);
+      setStatus(`Exported ${w} × ${h} PNG.`);
     });
-    await ensureAll();
-    redraw();
+  });
+  document.getElementById('exportAll').addEventListener('click', () => {
+    [[1080, 1080], [1080, 1350], [1920, 1080]].forEach(([w, h], i) => {
+      setTimeout(() => exportPNG(state, w, h), i * 400);
+    });
+    setStatus('Exported all three PNG sizes.');
   });
 }
 
-// --- boot ---------------------------------------------------------------
-
-export async function boot() {
-  coverEl = document.getElementById('cover');
+async function boot() {
   buildPickers();
-  buildEditor();
-  buildUpload();
-  const params = shotParams();
-  const inShot = applyShot(state, params);
-  await ensureAll();
-  redraw();
-  if (inShot) {
-    document.body.classList.add('shot');
-    if (params.shot === 'cover' || params.shot === 'wide' || params.shot === 'portrait') {
-      document.body.classList.add('shot-cover');
-      if (params.shot === 'wide') sizeKey = 'wide';
-      if (params.shot === 'portrait') sizeKey = 'portrait';
-      const s = SIZES[sizeKey];
-      coverEl.style.aspectRatio = `${s.w} / ${s.h}`;
-      redraw();
-    }
-    // Let the fonts and images settle, then signal readiness.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      setTimeout(() => markReady(params.shot), 120);
-    }));
+  buildThumbs();
+  wireEditor();
+  // Fonts must be in before the first render, or the canvas falls back to a
+  // system font and the title looks wrong.
+  await Promise.all([
+    document.fonts.load('40px Anton'),
+    document.fonts.load('40px Yellowtail'),
+    document.fonts.ready,
+  ]);
+  await loadSamples();
+  const query = new URLSearchParams(location.search);
+  const shot = query.get('shot');
+  if (shot) {
+    const ran = await runShot(shot, query, async (opts) => {
+      state.layout = opts.layout;
+      state.grade = opts.grade;
+      state.caption = opts.caption;
+      state.subtitle = opts.subtitle;
+      if (opts.shot === 'cover') {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      render();
+    });
+    if (ran) return;
   }
+  render();
+  setStatus('Ready — pick a layout and a grade, then export your cover.');
 }
 
-boot();
+boot().catch((err) => {
+  setStatus(`Could not start: ${err.message}`);
+  console.error(err);
+});

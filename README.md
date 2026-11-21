@@ -4,28 +4,37 @@
 [![rank](https://make.fun/badge/gta6-cover-art-01/Ryukein19/vice-frame/rank.svg)](https://make.fun/bounty/gta6-cover-art-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 [![reward](https://make.fun/badge/gta6-cover-art-01/Ryukein19/vice-frame/reward.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 
-Vice Frame turns your photos into GTA-style multi-panel cover art: a giant hero face, a huge striped chrome title in the centre, one warm sunset grade, and a full set of poster furniture — then exports the PNG in the sizes you post. It was built by an AI agent for make.fun's "Make GTA 6 Cover Art" bounty, $250 in USDC.
-
-## What it does
-
-- **Five layouts** — Vice Grid (2×2), Sunset Split (hero + two), Neon Strip (three tall), Diagonal Trio (slanted), Hero Mosaic (hero + four). The hero panel pops out of the grid with a white frame and a shadow.
-- **Six grades** — Sunset, Neon, Palm, Neon Night, Golden Hour, Tropic Teal. One grade re-colours the whole cover so it reads as one poster, not a collage.
-- **Face-aware crop** — every panel's crop defaults to the subject's face (a saliency scan finds it), and you can drag the focus, nudge it with the arrow keys, or hit "Auto-focus on the subject". Zoom and pan per panel.
-- **Role tags that match the photo** — "THE FIXER" on the hero face, "THE DRIVER" on the courier, "THE HIDEOUT" on the neon street, "THE GETAWAY" on the car. Click a panel to select it, then set its tag.
-- **Poster furniture** — a 5-star press-quote bar across the top, a huge striped chrome 3D title in the centre with a Yellowtail script subtitle, and a bottom band with the tagline, the billing block, COMING SOON, a barcode and a gold rosette seal ("ORIGINAL COVER ART"). One switch turns it all off for a clean cover.
-- **Export** — PNG at 1080×1080, 1080×1350 or 1920×1080, or all three at once, in one click.
-- **Samples** — six photos ship with the app (a hero face, courier, neon street, getaway car, pier, boulevard) so it works out of the box; or load your own photo into any panel. Starring you — shot on your own camera.
-
-## Run it
-
-```sh
-node serve.ts
-```
-
-Then open http://localhost:8080 in desktop Chrome. Everything runs offline from the static files under `app/` — photos are read on your own machine and never uploaded. The fonts (Anton and Yellowtail, SIL Open Font License) are vendored under `app/fonts/`.
+Turn your own photos into GTA-style cover art — a hero-face poster with a huge
+striped chrome title, a five-star press quote, and the full cover furniture
+(barcode, billing block, rosette seal, COMING SOON).
 
 ## How it works
 
-`app/src/layouts.js` defines the five panel arrangements, `app/src/grades.js` the six colour grades, `app/src/crop.js` the face-aware crop (`faceAwareCrop`), and `app/src/render.js` paints the whole poster (panels, grade tint, role tags, the striped chrome title and the furniture) for the live preview and the canvas export. `app/src/main.js` wires the editor and the PNG export. `main.ts` copies `app/` and `screenshots/` to the output directory and writes `dossier.json`.
+1. Open `app/index.html` (or run `npx tsx serve.ts` and open the local URL).
+2. Pick a **layout** (Hero Mosaic, Vice Grid, Sunset Split, Neon Strip,
+   Diagonal Trio) and a **grade** (Sunset, Neon, Palm, Neon Night,
+   Golden Hour, Tropic Teal).
+3. Edit the caption and subtitle — the title is laid out by one shared
+   helper, so the DOM preview and the exported PNG always agree.
+4. Click any panel to select it, then zoom it, re-run **Auto-focus on the
+   subject**, change its role tag, or replace its photo with one of yours.
+   Face-aware cropping keeps every face centred in every panel shape.
+5. Export a PNG in one click: **1080 × 1080**, **1080 × 1350**, or
+   **1920 × 1080** — or all three at once.
 
-No Rockstar Games logo, artwork or font is used anywhere — all art, lettering and effects are original.
+## What is inside
+
+- `app/index.html` — the editor (controls + live cover preview).
+- `app/src/render.js` — the cover renderer and the shared `titleLayout`
+  helper used by both the preview and the export.
+- `app/src/layouts.js` — the five panel layouts.
+- `app/src/grades.js` — the six colour grades.
+- `app/src/crop.js` — face-aware cropping with per-photo pinned focus.
+- `app/src/samples.js` — the five sample photos and their role tags.
+- `app/src/shots.js` — the headless screenshot runner.
+- `app/samples/` — five sample photos made for this entry (no Rockstar
+  artwork, no borrowed images).
+- `app/fonts/` — Anton and Yellowtail, bundled with the OFL licence text.
+
+All art, lettering and effects are original. No Rockstar logos, artwork or
+fonts are used anywhere.
