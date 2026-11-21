@@ -29,6 +29,49 @@ export function coverPanels(state, W, H) {
   }));
 }
 
+// Title geometry, shared by the DOM preview and the canvas export so
+// both draw the same title. A two-word caption stacks as two lines,
+// each sized to the hero panel and centred on it, so the whole title
+// reads inside one panel instead of straddling the gap between two.
+// A caption of any other length keeps the old single line across the
+// cover. Returns the lines, the font size, the centre x, each line's
+// centre y, the subtitle's y and size, and the band box (top + height).
+function titleLayout(state, W, H) {
+  const caption = (state.caption || 'SUNSET HEIST').toUpperCase();
+  const words = caption.split(/\s+/).filter(Boolean);
+  const panels = coverPanels(state, W, H);
+  const hero = panels.find((p) => p.hero);
+  if (words.length === 2 && hero) {
+    const longest = Math.max(words[0].length, words[1].length);
+    const lineH = 0.95;
+    const subK = 0.34;
+    const blockK = 2 * lineH + subK * 1.1;
+    // The block must fit between the top bar and the hero's base.
+    const availH = hero.py + hero.ph - H * 0.09;
+    const size = Math.min(
+      W * 0.16,
+      (hero.pw * 0.92) / (longest * 0.62),
+      availH / blockK,
+    );
+    const lh = size * lineH;
+    const subSize = size * subK;
+    const blockH = 2 * lh + subSize * 1.1;
+    const top = Math.max(H * 0.09, hero.py + hero.ph / 2 - blockH / 2);
+    return {
+      lines: words, size, cx: hero.px + hero.pw / 2,
+      lineY: [top + lh / 2, top + lh * 1.5],
+      subY: top + 2 * lh + subSize * 0.6, subSize,
+      bandTop: top, bandH: blockH,
+    };
+  }
+  const size = Math.min(W * 0.16, (W * 0.94) / Math.max(4, caption.length * 0.62));
+  return {
+    lines: [caption], size, cx: W / 2,
+    lineY: [H * 0.44], subY: H * 0.44 + size * 0.62, subSize: size * 0.38,
+    bandTop: H * 0.33, bandH: 0,
+  };
+}
+
 // --- DOM preview -------------------------------------------------------
 
 // Build (or rebuild) the cover preview inside coverEl. coverEl keeps the
@@ -98,20 +141,33 @@ export function renderCoverDOM(coverEl, state, images) {
     `<span class="vol-badge">${escapeHtml(state.volume || 'VOL. 1')}</span>`;
   coverEl.appendChild(top);
 
-  // The title, huge and central, overlapping the panels.
-  const titleSize = Math.min(W * 0.16, (W * 0.94) / Math.max(4, (state.caption || 'SUNSET HEIST').length * 0.62));
+  // The title, huge and central, overlapping the panels: a two-word
+  // caption stacks as two lines inside the hero panel (see titleLayout).
+  const tl = titleLayout(state, W, H);
   const band = document.createElement('div');
   band.className = 'title-band';
-  band.style.top = `${H * 0.33}px`;
-  const title = document.createElement('div');
-  title.className = 'cover-title';
-  title.style.fontSize = `${titleSize}px`;
-  title.textContent = (state.caption || 'SUNSET HEIST').toUpperCase();
+  if (tl.lines.length === 2) {
+    // Two-line title: the band sits over the hero panel, centred on the
+    // block titleLayout computed, so the title never straddles a gap.
+    const hero = coverPanels(state, W, H).find((p) => p.hero);
+    band.style.left = `${hero.px}px`;
+    band.style.right = 'auto';
+    band.style.width = `${hero.pw}px`;
+    band.style.top = `${tl.bandTop + tl.bandH / 2}px`;
+  } else {
+    band.style.top = `${H * 0.33}px`;
+  }
+  for (const line of tl.lines) {
+    const title = document.createElement('div');
+    title.className = 'cover-title';
+    title.style.fontSize = `${tl.size}px`;
+    title.textContent = line;
+    band.appendChild(title);
+  }
   const sub = document.createElement('div');
   sub.className = 'cover-sub';
-  sub.style.fontSize = `${titleSize * 0.38}px`;
+  sub.style.fontSize = `${tl.subSize}px`;
   sub.textContent = state.subtitle || '';
-  band.appendChild(title);
   band.appendChild(sub);
   coverEl.appendChild(band);
 
@@ -228,34 +284,38 @@ export function drawCoverToCanvas(state, images, W, H) {
 
   // The title, huge and central, overlapping the panels: striped chrome
   // with a heavy outline and a 3D drop, so it reads at thumbnail size.
-  const title = (state.caption || 'SUNSET HEIST').toUpperCase();
-  const titleSize = Math.min(W * 0.16, (W * 0.94) / Math.max(4, title.length * 0.62));
-  const cy = H * 0.44;
+  // A two-word caption stacks as two lines inside the hero panel.
+  const tl = titleLayout(state, W, H);
+  const titleSize = tl.size;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = `${Math.round(titleSize)}px Anton, sans-serif`;
-  // 3D depth: dark copies stacked below.
-  ctx.fillStyle = 'rgba(20, 4, 30, 0.9)';
-  for (let d = 9; d >= 3; d -= 3) {
-    ctx.fillText(title, W / 2, cy + d);
+  for (let i = 0; i < tl.lines.length; i++) {
+    const line = tl.lines[i];
+    const cy = tl.lineY[i];
+    // 3D depth: dark copies stacked below.
+    ctx.fillStyle = 'rgba(20, 4, 30, 0.9)';
+    for (let d = 9; d >= 3; d -= 3) {
+      ctx.fillText(line, tl.cx, cy + d);
+    }
+    // Striped chrome fill: hard-stop gradient bands (gold / pink / gold).
+    const stripe = ctx.createLinearGradient(0, cy - titleSize / 2, 0, cy + titleSize / 2);
+    stripe.addColorStop(0, '#fff8d6');
+    stripe.addColorStop(0.42, '#ffd166');
+    stripe.addColorStop(0.5, '#ff5e3a');
+    stripe.addColorStop(0.58, '#ffd166');
+    stripe.addColorStop(1, '#fff3c4');
+    ctx.fillStyle = stripe;
+    ctx.fillText(line, tl.cx, cy);
+    ctx.lineWidth = Math.max(2, titleSize * 0.035);
+    ctx.strokeStyle = 'rgba(20,4,30,0.9)';
+    ctx.strokeText(line, tl.cx, cy);
   }
-  // Striped chrome fill: hard-stop gradient bands (gold / pink / gold).
-  const stripe = ctx.createLinearGradient(0, cy - titleSize / 2, 0, cy + titleSize / 2);
-  stripe.addColorStop(0, '#fff8d6');
-  stripe.addColorStop(0.42, '#ffd166');
-  stripe.addColorStop(0.5, '#ff5e3a');
-  stripe.addColorStop(0.58, '#ffd166');
-  stripe.addColorStop(1, '#fff3c4');
-  ctx.fillStyle = stripe;
-  ctx.fillText(title, W / 2, cy);
-  ctx.lineWidth = Math.max(2, titleSize * 0.035);
-  ctx.strokeStyle = 'rgba(20,4,30,0.9)';
-  ctx.strokeText(title, W / 2, cy);
 
   if (state.subtitle) {
-    ctx.font = `${Math.round(titleSize * 0.4)}px Yellowtail, cursive`;
+    ctx.font = `${Math.round(tl.subSize)}px Yellowtail, cursive`;
     ctx.fillStyle = grade.ink;
-    ctx.fillText(state.subtitle, W / 2, cy + titleSize * 0.62);
+    ctx.fillText(state.subtitle, tl.cx, tl.subY);
   }
 
   // Bottom furniture band: tagline, billing, COMING SOON, barcode, rosette.

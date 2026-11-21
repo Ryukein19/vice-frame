@@ -16,7 +16,13 @@ export const SAMPLES = [
   { file: 'courier.jpg', name: 'Courier', role: 'THE DRIVER' },
   { file: 'neon.jpg', name: 'Neon Street', role: 'THE HIDEOUT' },
   { file: 'getaway.jpg', name: 'Getaway', role: 'THE GETAWAY' },
-  { file: 'pier.jpg', name: 'Pier', role: 'THE INSIDER' },
+  // The pier photo's face sits upper-left, but the energy heuristic
+  // scores the turquoise sea higher, so this sample ships with its focus
+  // pinned on the fisherman's face (and a tighter zoom) instead of the
+  // heuristic's guess — the face stays centred and fully in frame. The
+  // focus sits a touch below the face's centre so that, in the wide
+  // cover, the smile clears the bottom furniture band.
+  { file: 'pier.jpg', name: 'Pier', role: 'THE INSIDER', focus: { fx: 0.36, fy: 0.25 }, zoom: 1.35 },
   { file: 'boulevard.jpg', name: 'Boulevard', role: 'OCEAN DRIVE' },
 ];
 
@@ -37,8 +43,11 @@ export function freshState() {
     selected: 0,
     panels: SAMPLES.map((s) => ({
       photo: `samples/${s.file}`,
-      focus: defaultFocus(),
-      zoom: 1,
+      // A sample with a pinned focus keeps it; the rest get the
+      // face-aware crop in ensureAll (focusSet marks the pinned ones).
+      focus: s.focus ?? defaultFocus(),
+      focusSet: Boolean(s.focus),
+      zoom: s.zoom ?? 1,
       role: s.role,
     })),
   };
@@ -177,6 +186,11 @@ function buildPickers() {
       const slot = state.panels[state.selected];
       slot.photo = `samples/${s.file}`;
       slot.role = s.role;
+      if (s.focus) {
+        slot.focus = s.focus;
+        slot.focusSet = true;
+        slot.zoom = s.zoom ?? 1;
+      }
       await ensureImage(slot.photo).catch(() => null);
       redraw();
     });
@@ -320,8 +334,9 @@ function buildUpload() {
     state.panels.forEach((p, i) => {
       p.photo = `samples/${SAMPLES[i].file}`;
       p.role = SAMPLES[i].role;
-      p.focus = defaultFocus();
-      p.zoom = 1;
+      p.focus = SAMPLES[i].focus ?? defaultFocus();
+      p.focusSet = Boolean(SAMPLES[i].focus);
+      p.zoom = SAMPLES[i].zoom ?? 1;
     });
     await ensureAll();
     redraw();
